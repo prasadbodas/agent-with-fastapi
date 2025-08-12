@@ -1,50 +1,70 @@
 import os
+import getpass
 from dotenv import load_dotenv
 
-from typing import Annotated
-from typing_extensions import TypedDict
-
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from langchain.chat_models import init_chat_model
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
+from odoo_tool import OdooTool
 
 load_dotenv()
 
-class State(TypedDict):
-    # Messages have the type "list". The `add_messages` function
-    # in the annotation defines how this state key should be updated
-    # (in this case, it appends messages to the list, rather than overwriting them)
-    messages: Annotated[list, add_messages]
+def _set_env(key: str):
+    if key not in os.environ:
+        os.environ[key] = getpass.getpass(f"{key}:")
 
-graph_builder = StateGraph(State)
-provider_model = os.getenv("PROVIDER_MODEL", "ollama:qwen3:1.7b")
-llm = init_chat_model(provider_model)
+_set_env("OPENAI_API_KEY")
 
-def chatbot(state:State):
-    return {"messages": [llm.invoke(state["messages"])]}
+model_name = os.getenv("model", "gpt-5-nano")
+model = ChatOpenAI(model=model_name)
 
-# The first argument is the unique node name
-# The second argument is the function or object that will be called whenever
-# the node is used.
-graph_builder.add_node("chatbot", chatbot)
-graph_builder.add_edge(START, "chatbot")
-graph_builder.add_edge("chatbot", END)
+tools = [
+    OdooTool()
+]
 
-graph = graph_builder.compile()
+prompt = (
+    "You are expert Odoo 17 agent and web search assistant.\n"
+    "You are a helpful ReAct agent that can answer questions and perform tasks using the tools provided.\n"
+    "You can use the DuckDuckGo search tool to find information on the web, and the Odoo tool to interact with an Odoo instance.\n"
+    "Always collect necessary information(like fields,data type & relations) before using a tool.\n"
+    "When you need to use a tool, call it in your response.\n"
+    "If you don't need to use a tool, just answer the question directly.\n"
+    "If you are unsure about something, ask for clarification.\n"
+    "You can also ask the user for more information if needed.\n"
+    "Always use less input/output tokens and avoid unnecessary verbosity.\n"
+    "Think step by step and reason about your actions.\n"
+    
+    "Here are the tools available to you:\n"
+    "{tools}"
+)
 
-#Visualize the graph
-# from IPython.display import Image, display
-#
-# try:
-#     display(Image(graph.get_graph().draw_mermaid_png()))
-# except Exception:
-#     # This requires some extra dependencies and is optional
-#     pass
+agent = create_react_agent(model, tools=tools, prompt=prompt)
 
-user_input = input("Enter a message: ")
-state = graph.invoke({"messages": [{"role": "user", "content": user_input}]})
+def main():
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() in {"exit", "quit", "q"}:
+            break
+        for chunk in agent.stream(
+            {"messages": [{"role": "user", "content": user_input}]},
+            stream_mode="updates",
+            recursion_limit=10
+        ):
+            print(chunk)
+            print("////////////////////////////\n")
+            if chunk and "agent" in chunk and "messages" in chunk["agent"]:
+                for message in chunk["agent"]["messages"]:
+                    if hasattr(message, "tool_calls") and message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            print(f"Tool call: {tool_call['name']} with args {tool_call['args']}")
+                    elif hasattr(message, "content") and message.content.strip():
+                        print("Assistant:", message.content.strip())
+                    elif hasattr(message, "tool_results"):
+                        for tool_result in message.tool_results:
+                            print(f"Tool result: {tool_result}")
+                    elif hasattr(message, "error"):
+                        print(f"Error: {message.error}")
 
-print("Bot response:")
-print(state["messages"][-1])
-
-print(state["messages"][-1].content)
+if __name__ == "__main__":
+    main()
