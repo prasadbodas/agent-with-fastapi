@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Embeddings</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- static is mapped to frontend/assets/ -->
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 col-md-10">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h1 class="h5 mb-0">Embedding and Vector Store Management</h1>
+                    </div>
+                    <div class="card-body">
+                        <!-- Navigation to go back to chat -->
+                        <div class="mb-4">
+                            <a href="/" class="btn btn-outline-secondary">← Back to Chat</a>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-4">
+                                <!-- Data Source Management -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h5>1. Add Data Source</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="data-source-type" class="form-label">Data Source Type:</label>
+                                            <select id="data-source-type" class="form-select">
+                                                <option value="web" selected>Web Scraping</option>
+                                                <option value="code">Source Code Directory (Python)</option>
+                                            </select>
+                                        </div>
+                                        <div id="web-source-section">
+                                            <div class="mb-3">
+                                                <label for="urls-input" class="form-label">Enter URLs to scrape (one per line):</label>
+                                                <textarea id="urls-input" class="form-control" rows="5" placeholder="https://www.odoo.com/documentation/17.0/&#10;https://en.wikipedia.org/wiki/Odoo"></textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="scraping-method" class="form-label">Scraping Method:</label>
+                                                <select id="scraping-method" class="form-select">
+                                                    <option value="async" selected>Async (Fast, Recommended)</option>
+                                                    <option value="basic">Basic (Simple)</option>
+                                                    <option value="selenium">Selenium (For JS-heavy sites)</option>
+                                                </select>
+                                            </div>
+                                            <button id="scrape-btn" class="btn btn-primary">Scrape URLs</button>
+                                        </div>
+                                        <div id="code-source-section" style="display:none;">
+                                            <div class="mb-3">
+                                                <label for="code-dir-input" class="form-label">Python Project Directory Path (server-side):</label>
+                                                <input type="text" id="code-dir-input" class="form-control" placeholder="/path/to/python/project or ./myproject">
+                                            </div>
+                                            <button id="load-code-btn" class="btn btn-primary">Load Source Code</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Vector Store Management -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h5>2. Manage Vector Store</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="vectorstore-name" class="form-label">Vector Store Name:</label>
+                                            <input type="text" id="vectorstore-name" class="form-control" placeholder="e.g., odoo_docs_v17">
+                                        </div>
+                                        <button id="create-vectorstore-btn" class="btn btn-success">Create/Update Vector Store</button>
+                                        <button id="clear-documents-btn" class="btn btn-warning">Clear Scraped Documents</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-8 ps-0">
+                                <!-- Status and Logs -->
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5>3. Status & Logs</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="status-container">
+                                            <h6>Scraped Documents: <span id="doc-count">0</span></h6>
+                                            <ul id="document-list" class="list-group mb-3" style="max-height: 200px; overflow-y: auto;">
+                                                <!-- Scraped documents will be listed here -->
+                                            </ul>
+                                        </div>
+                                        <div id="logs-container">
+                                            <h6>Logs:</h6>
+                                            <pre id="logs" class="bg-dark text-white p-3 rounded" style="max-height: 300px; overflow-y: auto;"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- static is mapped to frontend/assets/ -->
+    <script src="static/manage-embedding.js"></script>
+</body>
+</html>

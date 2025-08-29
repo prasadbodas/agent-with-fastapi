@@ -283,6 +283,28 @@ code {
   border-radius: 3px;
 }
 
+/* Mode selector styling */
+.btn-group .btn-check:checked + .btn-outline-light {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.6);
+    color: #ffffff;
+}
+
+.btn-group .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.btn-group .btn-outline-light:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: #ffffff;
+}
+
+#mode-info {
+    font-style: italic;
+}
+
 /* Tool call and response styling */
 .tool-call {
   background-color: #fff3cd;

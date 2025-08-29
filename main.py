@@ -6,7 +6,7 @@ from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
-from odoo_tool import OdooTool
+from tools.odoo_tool import OdooTool
 from langgraph.checkpoint.memory import InMemorySaver
 
 load_dotenv()

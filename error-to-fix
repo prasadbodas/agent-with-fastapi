@@ -1,0 +1,89 @@
+"""
+    Traceback (most recent call last):
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py", line 244, in run_asgi
+    result = await self.app(self.scope, self.asgi_receive, self.asgi_send)  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\middleware\errors.py", line 151, in __call__
+    await self.app(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\middleware\cors.py", line 77, in __call__
+    await self.app(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\routing.py", line 364, in handle
+    await self.app(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\routing.py", line 97, in app
+    await wrap_app_handling_exceptions(app, session)(scope, receive, send)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\starlette\routing.py", line 95, in app
+    await func(session)
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\fastapi\routing.py", line 384, in app
+    await dependant.call(**solved_result.values)
+  File "C:\python\langgraph\ollama-chat\mainchat.py", line 202, in websocket_endpoint
+    async for response in react_agent_stream(user_message, session_id):
+  File "C:\python\langgraph\ollama-chat\mainchat.py", line 168, in react_agent_stream
+    async for step in agent.astream(
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langgraph\pregel\main.py", line 2937, in astream
+    async for _ in runner.atick(
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langgraph\pregel\_runner.py", line 295, in atick
+    await arun_with_retry(
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langgraph\pregel\_retry.py", line 137, in arun_with_retry
+    return await task.proc.ainvoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langgraph\_internal\_runnable.py", line 695, in ainvoke
+    input = await asyncio.create_task(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langgraph\_internal\_runnable.py", line 454, in ainvoke
+    ret = await asyncio.create_task(coro, context=context)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langgraph\prebuilt\chat_agent_executor.py", line 646, in acall_model
+    response = cast(AIMessage, await static_model.ainvoke(model_input, config))  # type: ignore[union-attr]
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 3088, in ainvoke
+    input_ = await coro_with_context(part(), context, create_task=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 5447, in ainvoke
+    return await self.bound.ainvoke(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 417, in ainvoke
+    llm_result = await self.agenerate_prompt(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 991, in agenerate_prompt
+    return await self.agenerate(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 949, in agenerate
+    raise exceptions[0]
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 1117, in _agenerate_with_cache
+    result = await self._agenerate(
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\langchain_openai\chat_models\base.py", line 1367, in _agenerate
+    response = await self.async_client.create(**payload)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 2544, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\openai\_base_client.py", line 1791, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\python\langgraph\ollama-chat\.venv\Lib\site-packages\openai\_base_client.py", line 1591, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'message': 'Request too large for gpt-5-nano in organization org-K8lmmIi3m62TZ6GcSBdZ5WOK on tokens per min (TPM): Limit 200000, Requested 2151270. The input or output tokens must be reduced in order to run successfully. Visit https://platform.openai.com/account/rate-limits to learn more.', 'type': 'tokens', 'param': None, 'code': 'rate_limit_exceeded'}}
+During task with name 'agent' and id 'e5003e6a-3dcc-5c63-ac90-37678d6c29ca'
+    """

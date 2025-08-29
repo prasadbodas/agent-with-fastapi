@@ -1,24 +1,40 @@
-import os
 import getpass
-from dotenv import load_dotenv
-import sqlite3
 import json
-
+import os
+import sqlite3
 from contextlib import asynccontextmanager
+from typing import List
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from langgraph.prebuilt import create_react_agent
-from langchain_openai import ChatOpenAI
-from odoo_tool import OdooTool
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.prebuilt import create_react_agent
+from langchain_ollama import OllamaEmbeddings
+from langchain_chroma import Chroma
+from langchain_openai import ChatOpenAI
+from langchain.schema import Document
+from langchain_chroma import Chroma
+from pydantic import BaseModel
+from tools.odoo_tool import OdooTool
+
+from langchain_community.document_loaders.generic import GenericLoader
+from langchain_community.document_loaders.parsers import LanguageParser
+from langchain_text_splitters import Language
+
+from rag.scraper import WebScraper
 
 # app = FastAPI()
 sqlite3_checkpointer = None
 agent = None
 cursor = None
 conn = None
+# RAG components
+vectorstore = None
+embeddings = None
+rag_model = None
 
 load_dotenv()
 
@@ -102,7 +118,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
+app.mount("/static", StaticFiles(directory="frontend/assets"), name="static")
 
 # Helper functions for DB
 def save_message(session_id, sender, message):
@@ -164,6 +180,7 @@ def ai_tool_message_to_dict(response):
 
 # Streaming ReAct agent using create_react_agent
 async def react_agent_stream(user_message, session_id):
+
     config = {"configurable": {"thread_id": session_id}}
     async for step in agent.astream(
         {"messages": [{"role": "user", "content": user_message}]},
@@ -203,12 +220,124 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text(response)
     except WebSocketDisconnect:
         pass
+    
 
+@app.websocket("/ws/ask")
+async def websocket_ask_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for RAG-enabled ask mode"""
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            user_message = data.get("message", "")
+            session_id = data.get("session_id")
+            if not session_id:
+                await websocket.send_text("Error: session_id is required.")
+                continue
+            save_message(session_id, "user", user_message)
+            # Implement RAG-enabled ask mode response
+            response = await rag_enabled_ask(user_message, session_id)
+            await websocket.send_text(response)
+    except WebSocketDisconnect:
+        pass
 
 @app.get("/")
 async def get_ui():
     return FileResponse("frontend/index.html")
 
+@app.get("/embeddings")
+async def get_embedding_ui():
+    return FileResponse("frontend/manage-embedding.html")
+
+class ScrapeRequest(BaseModel):
+    urls: List[str]
+    method: str = 'async'
+
+@app.post("/scrape")
+async def scrape_urls(request: ScrapeRequest):
+    scraper = WebScraper()
+    try:
+        if request.method == 'async':
+            documents = await scraper.scrape_async_html(request.urls)
+        elif request.method == 'selenium':
+            documents = scraper.scrape_with_selenium(request.urls)
+        else:
+            documents = scraper.scrape_basic_html(request.urls)
+        
+        # Convert documents to JSON-serializable format
+        docs_json = [
+            {"page_content": doc.page_content, "metadata": doc.metadata}
+            for doc in documents
+        ]
+        return {"success": True, "documents": docs_json}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+class VectorStoreRequest(BaseModel):
+    documents: List[dict]
+    name: str
+
+
+@app.post("/create-vectorstore")
+async def create_vectorstore(request: VectorStoreRequest):
+    try:
+        # Re-create Document objects from the received JSON
+        documents = [
+            Document(page_content=doc['page_content'], metadata=doc['metadata'])
+            for doc in request.documents
+        ]
+        embedding_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text:latest")
+        embeddings = OllamaEmbeddings(model=embedding_model_name)
+        persist_dir = os.path.join("vectorstores", request.name)
+        os.makedirs(persist_dir, exist_ok=True)
+        vectorstore = Chroma.from_documents(
+            documents=documents,
+            embedding=embeddings,
+            persist_directory=persist_dir
+        )
+        # vectorstore.persist()
+        return {"success": True, "path": persist_dir}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+async def rag_enabled_ask(user_message, session_id):
+    global vectorstore, embeddings, rag_model
+    print("RAG enabled ask called")
+    print(vectorstore)
+
+    if vectorstore is None or embeddings is None or rag_model is None:
+        # Load vector store using Chroma
+        embedding_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text:latest")
+        embeddings = OllamaEmbeddings(model=embedding_model_name)
+        vectorstore_path = "vectorstores/vector-2023-06-23-agent"
+        if not os.path.exists(vectorstore_path):
+            return "Error: Vector store not found. Please create it first."
+        vectorstore = Chroma(
+            persist_directory=vectorstore_path,
+            embedding_function=embeddings
+        )
+        model_name = os.getenv("MODEL", "gpt-5-nano")
+        rag_model = ChatOpenAI(model=model_name)
+
+    # Retrieve relevant documents
+    relevant_docs = vectorstore.similarity_search(user_message, k=3)
+    context = "\n\n".join([doc.page_content for doc in relevant_docs])
+
+    # Create prompt with context
+    prompt = (
+        f"Use the following context to answer the question:\n\n{context}\n\n"
+        f"Question: {user_message}\n"
+        "Answer:"
+    )
+
+    print(f"Prompt: {prompt}")
+
+    # Get response from the RAG model
+    response = rag_model.predict(prompt)
+
+    # Save and return the response
+    save_message(session_id, "agent", response)
+    return response
 
 @app.post("/message")
 async def post_message(data: dict):

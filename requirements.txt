@@ -104,3 +104,10 @@ websockets==15.0.1
 xxhash==3.5.0
 yarl==1.20.1
 zstandard==0.23.0
+
+# Additional dependencies for web scraper
+beautifulsoup4==4.12.3
+html2text==2024.2.26
+selenium==4.27.1
+webdriver-manager==4.0.2
+langchain-chroma==0.2.5
