@@ -111,3 +111,4 @@ html2text==2024.2.26
 selenium==4.27.1
 webdriver-manager==4.0.2
 langchain-chroma==0.2.5
+esprima==4.0.1

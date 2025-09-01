@@ -21,10 +21,13 @@
                             <div class="btn-group" role="group" aria-label="Mode selection">
                                 <input type="radio" class="btn-check" name="mode" id="agent-mode" value="agent" checked>
                                 <label class="btn btn-outline-light btn-sm" for="agent-mode">🤖 Agent Mode</label>
-                                
                                 <input type="radio" class="btn-check" name="mode" id="ask-mode" value="ask">
                                 <label class="btn btn-outline-light btn-sm" for="ask-mode">💬 Ask Mode (RAG)</label>
                             </div>
+                        </div>
+                        <div id="vectorstore-select-group" class="mt-2" style="display:none;">
+                            <label for="vectorstore-select" class="form-label mb-0 small">Vectorstore:</label>
+                            <select id="vectorstore-select" class="form-select form-select-sm" style="max-width: 250px;"></select>
                         </div>
                     </div>
                     <div class="card-body">

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import List
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -118,7 +118,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 app.mount("/static", StaticFiles(directory="frontend/assets"), name="static")
+
+# Route to list available vectorstores
+import glob
+@app.get("/vectorstores")
+async def list_vectorstores():
+    import os
+    base_dir = os.path.join(os.getcwd(), "vectorstores")
+    if not os.path.isdir(base_dir):
+        return {"vectorstores": []}
+    stores = []
+    for entry in os.listdir(base_dir):
+        store_path = os.path.join(base_dir, entry)
+        if os.path.isdir(store_path):
+            # Check for Chroma vectorstore marker (chroma.sqlite3)
+            if os.path.exists(os.path.join(store_path, "chroma.sqlite3")):
+                stores.append(entry)
+    return {"vectorstores": stores}
 
 # Helper functions for DB
 def save_message(session_id, sender, message):
@@ -153,6 +171,26 @@ def ai_message_to_dict(response):
     data = {
         "agent": {
             "messages": [ai_msg_to_dict(ai_msg) for ai_msg in response["agent"]["messages"]]
+        }
+    }
+
+    return json.dumps(data)
+
+def ai_rag_message_to_dict(response):
+    """Convert AI message to a dictionary."""
+    print(response)
+    def ai_msg_to_dict(ai_msg):
+        return {
+            "content": ai_msg.content,
+            "additional_kwargs": ai_msg.additional_kwargs,
+            "response_metadata": ai_msg.response_metadata,
+            "id": ai_msg.id,
+            "usage_metadata": ai_msg.usage_metadata,
+        }
+
+    data = {
+        "agent": {
+            "messages": ai_msg_to_dict(response)
         }
     }
 
@@ -231,12 +269,13 @@ async def websocket_ask_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
             user_message = data.get("message", "")
             session_id = data.get("session_id")
+            vectorstore_name = data.get("vectorstore")
             if not session_id:
                 await websocket.send_text("Error: session_id is required.")
                 continue
             save_message(session_id, "user", user_message)
-            # Implement RAG-enabled ask mode response
-            response = await rag_enabled_ask(user_message, session_id)
+            # Pass vectorstore_name to RAG-enabled ask mode response
+            response = await rag_enabled_ask(user_message, session_id, vectorstore_name)
             await websocket.send_text(response)
     except WebSocketDisconnect:
         pass
@@ -248,6 +287,64 @@ async def get_ui():
 @app.get("/embeddings")
 async def get_embedding_ui():
     return FileResponse("frontend/manage-embedding.html")
+
+@app.post("/load-code")
+async def load_code(request: Request):
+    """
+    Load Python source code files from a directory using GenericLoader and LanguageParser.
+    Expects JSON body: { "dir_path": "<directory_path>" }
+    """
+    try:
+        data = await request.json()
+        dir_path = data.get("dir_path")
+        if not dir_path:
+            return {"success": False, "error": "Missing dir_path"}
+
+        # check if directory exists
+        if not os.path.isdir(dir_path):
+            return {"success": False, "error": "Invalid dir_path"}
+
+        # Use GenericLoader with LanguageParser for Python and a splitter
+        from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
+
+        # Define splitters for Python and JS
+        py_splitter = RecursiveCharacterTextSplitter.from_language(
+            language=Language.PYTHON,
+            chunk_size=1000,
+            chunk_overlap=100
+        )
+        js_splitter = RecursiveCharacterTextSplitter.from_language(
+            language=Language.JS,
+            chunk_size=1000,
+            chunk_overlap=100
+        )
+
+        # Load Python files
+        py_loader = GenericLoader.from_filesystem(
+            dir_path,
+            glob="**/*.py",
+            parser=LanguageParser(language=Language.PYTHON),
+            splitter=py_splitter
+        )
+        py_documents = py_loader.load()
+
+        # Load JS files
+        js_loader = GenericLoader.from_filesystem(
+            dir_path,
+            glob="**/*.js",
+            parser=LanguageParser(language=Language.JS),
+            splitter=js_splitter
+        )
+        js_documents = js_loader.load()
+
+        documents = py_documents + js_documents
+        docs_json = [
+            {"page_content": doc.page_content, "metadata": doc.metadata}
+            for doc in documents
+        ]
+        return {"success": True, "documents": docs_json}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 class ScrapeRequest(BaseModel):
     urls: List[str]
@@ -300,22 +397,33 @@ async def create_vectorstore(request: VectorStoreRequest):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-async def rag_enabled_ask(user_message, session_id):
+async def rag_enabled_ask(user_message, session_id, vectorstore_name=None):
     global vectorstore, embeddings, rag_model
     print("RAG enabled ask called")
     print(vectorstore)
 
-    if vectorstore is None or embeddings is None or rag_model is None:
-        # Load vector store using Chroma
-        embedding_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text:latest")
+    # Always reload vectorstore if a name is provided (per request)
+    embedding_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text:latest")
+    if embeddings is None:
         embeddings = OllamaEmbeddings(model=embedding_model_name)
-        vectorstore_path = "vectorstores/vector-2023-06-23-agent"
+    if vectorstore_name:
+        vectorstore_path = os.path.join("vectorstores", vectorstore_name)
+        if not os.path.exists(vectorstore_path):
+            return f"Error: Vector store '{vectorstore_name}' not found. Please create it first."
+        vectorstore = Chroma(
+            persist_directory=vectorstore_path,
+            embedding_function=embeddings
+        )
+    elif vectorstore is None:
+        # fallback to default
+        vectorstore_path = "vectorstores/zehntech_advance_dashboard"
         if not os.path.exists(vectorstore_path):
             return "Error: Vector store not found. Please create it first."
         vectorstore = Chroma(
             persist_directory=vectorstore_path,
             embedding_function=embeddings
         )
+    if rag_model is None:
         model_name = os.getenv("MODEL", "gpt-5-nano")
         rag_model = ChatOpenAI(model=model_name)
 
@@ -333,11 +441,12 @@ async def rag_enabled_ask(user_message, session_id):
     print(f"Prompt: {prompt}")
 
     # Get response from the RAG model
-    response = rag_model.predict(prompt)
-
+    response = rag_model.invoke(prompt)
+    print(f"Response: {response}")
+    ai_msg = ai_message_to_dict(response)
     # Save and return the response
-    save_message(session_id, "agent", response)
-    return response
+    save_message(session_id, "agent", ai_msg)
+    return ai_msg
 
 @app.post("/message")
 async def post_message(data: dict):

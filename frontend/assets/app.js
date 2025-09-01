@@ -261,11 +261,19 @@ function connectWebSocket() {
 
 function sendMessage(message) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-            message, 
+        let payload = {
+            message,
             session_id: sessionId,
             mode: currentMode
-        }));
+        };
+        // If in RAG mode, add selected vectorstore
+        if (currentMode === 'ask') {
+            const select = document.getElementById('vectorstore-select');
+            if (select && select.value) {
+                payload.vectorstore = select.value;
+            }
+        }
+        socket.send(JSON.stringify(payload));
     } else {
         console.error('WebSocket is not open');
     }
@@ -275,16 +283,20 @@ window.addEventListener('DOMContentLoaded', () => {
     // Initialize mode from localStorage
     const savedMode = localStorage.getItem('chat_mode') || 'agent';
     currentMode = savedMode;
-    
+
     // Set the radio button to match saved mode
     const modeRadio = document.querySelector(`input[name="mode"][value="${currentMode}"]`);
     if (modeRadio) {
         modeRadio.checked = true;
     }
-    
+
     // Update mode info text
     updateModeInfo();
-    
+
+    // Load vectorstores and update visibility
+    loadVectorstores();
+    updateVectorstoreVisibility();
+
     // Add event listeners for mode change
     const modeRadios = document.querySelectorAll('input[name="mode"]');
     modeRadios.forEach(radio => {
@@ -293,15 +305,14 @@ window.addEventListener('DOMContentLoaded', () => {
                 currentMode = this.value;
                 localStorage.setItem('chat_mode', currentMode);
                 updateModeInfo();
-                
+                updateVectorstoreVisibility();
                 // Reconnect WebSocket with new endpoint
                 connectWebSocket();
-                
                 console.log('Mode changed to:', currentMode);
             }
         });
     });
-    
+
     fetchHistory();
     connectWebSocket();
     const sendBtn = document.getElementById('send-btn');
@@ -345,3 +356,29 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Fetch and populate vectorstore options
+function loadVectorstores() {
+    fetch('/vectorstores')
+        .then(res => res.json())
+        .then(data => {
+            const select = document.getElementById('vectorstore-select');
+            if (select && data.vectorstores) {
+                select.innerHTML = '';
+                data.vectorstores.forEach(store => {
+                    const opt = document.createElement('option');
+                    opt.value = store;
+                    opt.textContent = store;
+                    select.appendChild(opt);
+                });
+            }
+        });
+}
+
+// Show/hide vectorstore select based on mode
+function updateVectorstoreVisibility() {
+    const group = document.getElementById('vectorstore-select-group');
+    if (group) {
+        group.style.display = (currentMode === 'ask') ? '' : 'none';
+    }
+}
