@@ -10,6 +10,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearDocumentsBtn = document.getElementById('clear-documents-btn');
     const urlsInput = document.getElementById('urls-input');
     const scrapingMethodSelect = document.getElementById('scraping-method');
+    const maxDepthGroup = document.getElementById('max-depth-group');
+    // Show/hide max-depth field based on scraping method
+    scrapingMethodSelect.addEventListener('change', () => {
+        if (scrapingMethodSelect.value === 'recursive') {
+            maxDepthGroup.style.display = '';
+        } else {
+            maxDepthGroup.style.display = 'none';
+        }
+    });
+    // Initialize visibility on page load
+    if (scrapingMethodSelect.value === 'recursive') {
+        maxDepthGroup.style.display = '';
+    } else {
+        maxDepthGroup.style.display = 'none';
+    }
     const codeDirInput = document.getElementById('code-dir-input');
     const vectorstoreNameInput = document.getElementById('vectorstore-name');
     const docCountSpan = document.getElementById('doc-count');
@@ -72,10 +87,15 @@ document.addEventListener('DOMContentLoaded', () => {
         logMessage(`Starting scraping for ${urls.length} URLs using ${method} method...`);
         scrapeBtn.disabled = true;
         try {
+            let body = { urls, method };
+            if (method === 'recursive') {
+                const maxDepthSelect = document.getElementById('max-depth-select');
+                body.max_depth = parseInt(maxDepthSelect.value, 10);
+            }
             const response = await fetch('/scrape', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ urls, method }),
+                body: JSON.stringify(body),
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const result = await response.json();

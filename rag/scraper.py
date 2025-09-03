@@ -178,7 +178,7 @@ class WebScraper:
         """
         try:
             exclude_dirs = exclude_dirs or []
-            
+            print(f"max_depth: {max_depth}")
             loader = RecursiveUrlLoader(
                 url=base_url,
                 max_depth=max_depth,
@@ -186,7 +186,10 @@ class WebScraper:
                 exclude_dirs=exclude_dirs
             )
             documents = loader.load()
-            
+
+            for d in documents:
+                print(d.metadata)
+
             # Filter documents based on include patterns if provided
             if include_patterns:
                 filtered_docs = []
@@ -199,8 +202,8 @@ class WebScraper:
             # Clean and split documents
             cleaned_docs = self._clean_documents(documents)
             split_docs = self.text_splitter.split_documents(cleaned_docs)
-            
-            logger.info(f"Successfully recursively scraped from {base_url}, generated {len(split_docs)} chunks")
+
+            logger.info(f"Successfully recursively scraped from {base_url}, scraped {len(documents)} documents, generated {len(split_docs)} chunks")
             return split_docs
             
         except Exception as e:
@@ -313,7 +316,6 @@ class WebScraper:
         
         logger.info(f"Batch scraping completed. Total documents: {len(all_documents)}")
         return all_documents
-
 
 # Utility functions for common scraping tasks
 

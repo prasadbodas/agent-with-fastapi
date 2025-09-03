@@ -189,7 +189,7 @@ def ai_rag_message_to_dict(response):
         }
 
     data = {
-        "agent": {
+        "rag": {
             "messages": ai_msg_to_dict(response)
         }
     }
@@ -348,6 +348,7 @@ async def load_code(request: Request):
 
 class ScrapeRequest(BaseModel):
     urls: List[str]
+    max_depth: int = 2
     method: str = 'async'
 
 @app.post("/scrape")
@@ -358,9 +359,18 @@ async def scrape_urls(request: ScrapeRequest):
             documents = await scraper.scrape_async_html(request.urls)
         elif request.method == 'selenium':
             documents = scraper.scrape_with_selenium(request.urls)
+        elif request.method == 'recursive':
+            # Use first URL, allow optional depth via request (extend ScrapeRequest if needed)
+            url = request.urls[0] if request.urls else None
+            if not url:
+                return {"success": False, "error": "No URL provided for recursive scrape."}
+            print(f"request.max_depth: {request.max_depth}")
+            max_depth = request.max_depth if hasattr(request, 'max_depth') else 2
+            print(f"max_depth: {max_depth}")
+            documents = scraper.scrape_recursive(url, max_depth=max_depth)
         else:
             documents = scraper.scrape_basic_html(request.urls)
-        
+
         # Convert documents to JSON-serializable format
         docs_json = [
             {"page_content": doc.page_content, "metadata": doc.metadata}
@@ -437,13 +447,25 @@ async def rag_enabled_ask(user_message, session_id, vectorstore_name=None):
         f"Question: {user_message}\n"
         "Answer:"
     )
+    
+    prompt = (
+        "You are an assistant for Odoo developers. Use the provided documentation context to answer clearly.\n\n"
+        "If unsure, say \"I don't know\" instead of guessing.\n\n"
+        "Refuse hallucinations if no relevant docs found.\n\n"
+        "Always cite doc section (from metadata).\n\n"
+        "Output should be compatible with marked.min.js\n\n"
+        "Context:\n"
+        f"{context}\n\n"
+        "Question:\n"
+        f"{user_message}"
+    )
 
     print(f"Prompt: {prompt}")
 
     # Get response from the RAG model
     response = rag_model.invoke(prompt)
     print(f"Response: {response}")
-    ai_msg = ai_message_to_dict(response)
+    ai_msg = ai_rag_message_to_dict(response)
     # Save and return the response
     save_message(session_id, "agent", ai_msg)
     return ai_msg

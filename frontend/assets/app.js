@@ -26,6 +26,7 @@ function updateModeInfo() {
 function putInnerHTMLOfMessage(div, msg_content) {
     // Regular message with markdown support
     if (typeof marked !== 'undefined') {
+        console.log('Rendering markdown with marked library');
         div.innerHTML = marked.parse(msg_content);
     } else {
         // Fallback: simple formatting without markdown library
@@ -47,7 +48,6 @@ function renderMessages() {
 
         chatBox.innerHTML = '';
         messageHistory.forEach(({msg, sender, type}) => {
-            console.log('Rendering message:', msg, sender, type);
             const div = document.createElement('div');
             var usageDiv = null;
             var toolDiv = null;
@@ -58,18 +58,12 @@ function renderMessages() {
                 // Try to parse as JSON first (for agent mode responses)
                 try {
                     msg_json = JSON.parse(msg);
-                    
+
                     // Check if this is a RAG response
-                    if (msg_json.type === "rag_response") {
-                        if (msg_json.partial && msg_json.content) {
-                            // For streaming RAG responses, append content
-                            if (!div.ragContent) div.ragContent = "";
-                            div.ragContent += msg_json.content;
-                            putInnerHTMLOfMessage(div, div.ragContent);
-                        } else if (msg_json.complete_response) {
-                            // For complete RAG response, use the full response
-                            putInnerHTMLOfMessage(div, msg_json.complete_response);
-                        }
+                    if (msg_json.rag && msg_json.rag.messages && msg_json.rag.messages.content) {
+                        msg_content = msg_json.rag.messages ? msg_json.rag.messages.content : msg_json;
+
+                        putInnerHTMLOfMessage(div, msg_content);
                         // Skip the rest of agent processing for RAG responses
                     } else if (msg_json.agent && msg_json.agent.messages && msg_json.agent.messages.length > 0) {
                         // Handle regular agent responses (existing logic)
