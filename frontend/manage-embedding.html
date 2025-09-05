@@ -34,6 +34,7 @@
                                             <label for="data-source-type" class="form-label">Data Source Type:</label>
                                             <select id="data-source-type" class="form-select">
                                                 <option value="web" selected>Web Scraping</option>
+                                                <option value="pdf">PDF Documents</option>
                                                 <option value="code">Source Code Directory (Python)</option>
                                             </select>
                                         </div>
@@ -50,7 +51,6 @@
                                                     <option value="recursive">Recursive (Crawl Links)</option>
                                                     <option value="sitemap">Sitemap (XML Sitemap)</option>
                                                     <option value="pdf-async">PDF Documents (Async)</option>
-                                                    <option value="pdf">PDF Documents</option>
                                                     <option value="selenium">Selenium (For JS-heavy sites)</option>
                                                 </select>
                                             </div>
@@ -76,6 +76,13 @@
                                                 <input type="text" id="code-dir-input" class="form-control" placeholder="/path/to/python/project or ./myproject">
                                             </div>
                                             <button id="load-code-btn" class="btn btn-primary">Load Source Code</button>
+                                        </div>
+                                        <div id="pdf-source-section" style="display:none;">
+                                            <div class="mb-3">
+                                                <label for="pdf-upload-input" class="form-label">Upload PDF Files:</label>
+                                                <input type="file" id="pdf-upload-input" name="pdf_files[]" class="form-control" accept=".pdf" multiple>
+                                            </div>
+                                            <button id="scrape-pdf-btn" class="btn btn-primary">Upload PDFs & Scrape</button>
                                         </div>
                                     </div>
                                 </div>

@@ -4,8 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dataSourceType = document.getElementById('data-source-type');
     const webSourceSection = document.getElementById('web-source-section');
     const codeSourceSection = document.getElementById('code-source-section');
+    const pdfSourceSection = document.getElementById('pdf-source-section');
     const scrapeBtn = document.getElementById('scrape-btn');
     const loadCodeBtn = document.getElementById('load-code-btn');
+    const scrapePdfBtn = document.getElementById('scrape-pdf-btn');
     const createVectorstoreBtn = document.getElementById('create-vectorstore-btn');
     const clearDocumentsBtn = document.getElementById('clear-documents-btn');
     const urlsInput = document.getElementById('urls-input');
@@ -106,9 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dataSourceType.value === 'web') {
             webSourceSection.style.display = '';
             codeSourceSection.style.display = 'none';
+            pdfSourceSection.style.display = 'none';
+        }else if (dataSourceType.value == 'pdf') {
+            webSourceSection.style.display = 'none';
+            codeSourceSection.style.display = 'none';
+            pdfSourceSection.style.display = '';
         } else {
             webSourceSection.style.display = 'none';
             codeSourceSection.style.display = '';
+            pdfSourceSection.style.display = 'none';
         }
     });
 
@@ -182,6 +190,49 @@ document.addEventListener('DOMContentLoaded', () => {
             logMessage(`An error occurred: ${error.message}`, 'error');
         } finally {
             loadCodeBtn.disabled = false;
+        }
+    });
+
+    scrapePdfBtn.addEventListener('click', async () => {
+        // upload PDFs and post for scrape
+        const pdfUploadInput = document.getElementById('pdf-upload-input');
+        const files = pdfUploadInput.files;
+        
+        if (files.length === 0) {
+            logMessage('Please select PDF files to upload.', 'error');
+            return;
+        }
+        
+        logMessage(`Uploading and processing ${files.length} PDF file(s)...`);
+        scrapePdfBtn.disabled = true;
+        
+        try {
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('pdf_files', files[i]);
+            }
+            
+            const response = await fetch('/load-pdfs', {
+                method: 'POST',
+                body: formData,
+            });
+            
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                scrapedDocuments.push(...result.documents);
+                logMessage(`Successfully processed ${result.documents.length} PDF document chunks.`, 'success');
+                updateDocumentList();
+                // Clear the file input
+                pdfUploadInput.value = '';
+            } else {
+                logMessage(`PDF processing failed: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            logMessage(`An error occurred: ${error.message}`, 'error');
+        } finally {
+            scrapePdfBtn.disabled = false;
         }
     });
 

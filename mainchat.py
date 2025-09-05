@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import List
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -343,6 +343,59 @@ async def load_code(request: Request):
             for doc in documents
         ]
         return {"success": True, "documents": docs_json}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/load-pdfs")
+async def load_pdfs(pdf_files: List[UploadFile] = File(...)):
+    """
+    Upload and process PDF files.
+    Expects multipart/form-data with PDF files.
+    """
+    import tempfile
+    
+    if not pdf_files:
+        return {"success": False, "error": "No PDF files provided"}
+    
+    scraper = WebScraper()
+    all_documents = []
+    
+    try:
+        for pdf_file in pdf_files:
+            # Validate file type
+            if not pdf_file.filename.lower().endswith('.pdf'):
+                continue
+                
+            # Save uploaded file to temporary location
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+                content = await pdf_file.read()
+                temp_file.write(content)
+                temp_path = temp_file.name
+            
+            try:
+                # Process the PDF file
+                documents = scraper.scrape_local_pdf(temp_path)
+                
+                # Update metadata with original filename
+                for doc in documents:
+                    doc.metadata['source'] = pdf_file.filename
+                    doc.metadata['original_filename'] = pdf_file.filename
+                    doc.metadata['file_type'] = 'pdf'
+                
+                all_documents.extend(documents)
+                
+            finally:
+                # Clean up temporary file
+                os.unlink(temp_path)
+        
+        # Convert documents to JSON-serializable format
+        docs_json = [
+            {"page_content": doc.page_content, "metadata": doc.metadata}
+            for doc in all_documents
+        ]
+        
+        return {"success": True, "documents": docs_json}
+        
     except Exception as e:
         return {"success": False, "error": str(e)}
 
