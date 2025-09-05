@@ -11,19 +11,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlsInput = document.getElementById('urls-input');
     const scrapingMethodSelect = document.getElementById('scraping-method');
     const maxDepthGroup = document.getElementById('max-depth-group');
+    const maxPagesGroup = document.getElementById('max-pages-group');
+    const maxPagesInput = document.getElementById('max-pages-input');
+    const urlsLabel = document.getElementById('urls-label');
     // Show/hide max-depth field based on scraping method
     scrapingMethodSelect.addEventListener('change', () => {
         if (scrapingMethodSelect.value === 'recursive') {
             maxDepthGroup.style.display = '';
+            maxPagesGroup.style.display = 'none';
+            urlsLabel.textContent = 'Enter starting URL for recursive crawling:';
+            urlsInput.placeholder = 'https://www.odoo.com/documentation/17.0/';
+        } else if (scrapingMethodSelect.value === 'sitemap') {
+            maxDepthGroup.style.display = '';
+            maxPagesGroup.style.display = '';
+            urlsLabel.textContent = 'Enter sitemap.xml URL:';
+            urlsInput.placeholder = 'https://www.example.com/sitemap.xml';
+        } else if (scrapingMethodSelect.value === 'pdf-async') {
+            maxDepthGroup.style.display = 'none';
+            maxPagesGroup.style.display = 'none';
+            urlsLabel.textContent = 'Enter PDF URLs to scrape (one per line):';
+            urlsInput.placeholder = 'https://example.com/document.pdf\nhttps://another-site.com/manual.pdf';
         } else {
             maxDepthGroup.style.display = 'none';
+            maxPagesGroup.style.display = 'none';
+            urlsLabel.textContent = 'Enter URLs to scrape (one per line):';
+            urlsInput.placeholder = 'https://www.odoo.com/documentation/17.0/\nhttps://en.wikipedia.org/wiki/Odoo';
         }
     });
     // Initialize visibility on page load
     if (scrapingMethodSelect.value === 'recursive') {
         maxDepthGroup.style.display = '';
+        maxPagesGroup.style.display = 'none';
+        urlsLabel.textContent = 'Enter starting URL for recursive crawling:';
+        urlsInput.placeholder = 'https://www.odoo.com/documentation/17.0/';
+    } else if (scrapingMethodSelect.value === 'sitemap') {
+        maxDepthGroup.style.display = '';
+        maxPagesGroup.style.display = '';
+        urlsLabel.textContent = 'Enter sitemap.xml URL:';
+        urlsInput.placeholder = 'https://www.example.com/sitemap.xml';
+    } else if (scrapingMethodSelect.value === 'pdf-async') {
+        maxDepthGroup.style.display = 'none';
+        maxPagesGroup.style.display = 'none';
+        urlsLabel.textContent = 'Enter PDF URLs to scrape (one per line):';
+        urlsInput.placeholder = 'https://example.com/document.pdf\nhttps://another-site.com/manual.pdf';
     } else {
         maxDepthGroup.style.display = 'none';
+        maxPagesGroup.style.display = 'none';
+        urlsLabel.textContent = 'Enter URLs to scrape (one per line):';
+        urlsInput.placeholder = 'https://www.odoo.com/documentation/17.0/\nhttps://en.wikipedia.org/wiki/Odoo';
     }
     const codeDirInput = document.getElementById('code-dir-input');
     const vectorstoreNameInput = document.getElementById('vectorstore-name');
@@ -90,7 +125,14 @@ document.addEventListener('DOMContentLoaded', () => {
             let body = { urls, method };
             if (method === 'recursive') {
                 const maxDepthSelect = document.getElementById('max-depth-select');
-                body.max_depth = parseInt(maxDepthSelect.value, 10);
+                body.max_depth = parseInt(maxDepthSelect.value);
+            } else if (method === 'sitemap') {
+                const maxDepthSelect = document.getElementById('max-depth-select');
+                body.max_depth = parseInt(maxDepthSelect.value);
+                const maxPages = maxPagesInput.value.trim();
+                if (maxPages) {
+                    body.max_pages = parseInt(maxPages);
+                }
             }
             const response = await fetch('/scrape', {
                 method: 'POST',

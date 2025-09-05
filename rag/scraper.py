@@ -11,7 +11,10 @@ from langchain_community.document_loaders import (
     AsyncHtmlLoader,
     SeleniumURLLoader,
     PlaywrightURLLoader,
-    RecursiveUrlLoader
+    RecursiveUrlLoader,
+    SitemapLoader,
+    PyPDFLoader,
+    OnlinePDFLoader
 )
 from langchain_community.document_transformers import Html2TextTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -209,6 +212,161 @@ class WebScraper:
         except Exception as e:
             logger.error(f"Error in recursive scraping: {str(e)}")
             return []
+    
+    async def scrape_sitemap(self, sitemap_url: str, max_depth: int = 2, max_pages: int = None) -> List[Document]:
+        try:
+            loader = SitemapLoader(
+                web_path=sitemap_url,
+                max_depth=max_depth
+            )
+            
+            # Run loader.load() in a thread to avoid asyncio.run clash
+            loop = asyncio.get_event_loop()
+            documents = await loop.run_in_executor(None, loader.load)
+
+            if max_pages and len(documents) > max_pages:
+                documents = documents[:max_pages]
+                logger.info(f"Limited sitemap scraping to {max_pages} pages")
+
+            cleaned_docs = self._clean_documents(documents)
+            split_docs = self.text_splitter.split_documents(cleaned_docs)
+
+            logger.info(
+                f"Successfully scraped sitemap from {sitemap_url}, "
+                f"scraped {len(documents)} documents, generated {len(split_docs)} chunks"
+            )
+            return split_docs
+
+        except Exception as e:
+            logger.error(f"Error in sitemap scraping: {str(e)}")
+            return []
+
+    def scrape_pdf_urls(self, urls: Union[str, List[str]]) -> List[Document]:
+        """
+        Scrape PDF documents from URLs.
+        
+        Args:
+            urls: Single PDF URL or list of PDF URLs to scrape
+            
+        Returns:
+            List of Document objects
+        """
+        if isinstance(urls, str):
+            urls = [urls]
+        
+        all_documents = []
+        
+        for url in urls:
+            try:
+                logger.info(f"Loading PDF from: {url}")
+                
+                # Use OnlinePDFLoader for URLs
+                loader = OnlinePDFLoader(url)
+                documents = loader.load()
+                
+                # Clean and split documents
+                cleaned_docs = self._clean_documents(documents)
+                split_docs = self.text_splitter.split_documents(cleaned_docs)
+                
+                all_documents.extend(split_docs)
+                logger.info(f"Successfully loaded PDF from {url}, generated {len(split_docs)} chunks")
+                
+            except Exception as e:
+                logger.error(f"Error loading PDF from {url}: {str(e)}")
+                continue
+        
+        logger.info(f"Total PDF documents processed: {len(all_documents)} chunks")
+        return all_documents
+
+    def scrape_local_pdf(self, file_path: str) -> List[Document]:
+        """
+        Scrape a local PDF file.
+        
+        Args:
+            file_path: Path to the local PDF file
+            
+        Returns:
+            List of Document objects
+        """
+        try:
+            logger.info(f"Loading local PDF from: {file_path}")
+            
+            # Use PyPDFLoader for local files
+            loader = PyPDFLoader(file_path)
+            documents = loader.load()
+            
+            # Clean and split documents
+            cleaned_docs = self._clean_documents(documents)
+            split_docs = self.text_splitter.split_documents(cleaned_docs)
+            
+            logger.info(f"Successfully loaded local PDF, generated {len(split_docs)} chunks")
+            return split_docs
+            
+        except Exception as e:
+            logger.error(f"Error loading local PDF from {file_path}: {str(e)}")
+            return []
+
+    async def scrape_pdf_urls_async(self, urls: Union[str, List[str]]) -> List[Document]:
+        """
+        Async version of PDF scraping from URLs.
+        
+        Args:
+            urls: Single PDF URL or list of PDF URLs to scrape
+            
+        Returns:
+            List of Document objects
+        """
+        if isinstance(urls, str):
+            urls = [urls]
+        
+        all_documents = []
+        
+        for url in urls:
+            try:
+                logger.info(f"Loading PDF from: {url}")
+                
+                # Download PDF content first
+                import aiohttp
+                import tempfile
+                import os
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        response.raise_for_status()
+                        content = await response.read()
+                
+                # Save to temporary file and use PyPDFLoader
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+                    temp_file.write(content)
+                    temp_path = temp_file.name
+                
+                try:
+                    loader = PyPDFLoader(temp_path)
+                    documents = loader.load()
+                    
+                    # Update metadata with original URL
+                    for doc in documents:
+                        doc.metadata['source'] = url
+                        doc.metadata['original_source'] = url
+                    
+                    # Clean and split documents
+                    cleaned_docs = self._clean_documents(documents)
+                    split_docs = self.text_splitter.split_documents(cleaned_docs)
+                    
+                    all_documents.extend(split_docs)
+                    logger.info(f"Successfully loaded PDF from {url}, generated {len(split_docs)} chunks")
+                    
+                finally:
+                    # Clean up temporary file
+                    os.unlink(temp_path)
+                
+            except Exception as e:
+                logger.error(f"Error loading PDF from {url}: {str(e)}")
+                continue
+        
+        logger.info(f"Total PDF documents processed: {len(all_documents)} chunks")
+        return all_documents
+
     
     def scrape_odoo_documentation(self, version: str = "17.0") -> List[Document]:
         """

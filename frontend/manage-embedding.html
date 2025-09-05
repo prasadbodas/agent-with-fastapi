@@ -39,7 +39,7 @@
                                         </div>
                                         <div id="web-source-section">
                                             <div class="mb-3">
-                                                <label for="urls-input" class="form-label">Enter URLs to scrape (one per line):</label>
+                                                <label for="urls-input" class="form-label" id="urls-label">Enter URLs to scrape (one per line):</label>
                                                 <textarea id="urls-input" class="form-control" rows="5" placeholder="https://www.odoo.com/documentation/17.0/&#10;https://en.wikipedia.org/wiki/Odoo"></textarea>
                                             </div>
                                             <div class="mb-3">
@@ -48,6 +48,9 @@
                                                     <option value="async" selected>Async (Fast, Recommended)</option>
                                                     <option value="basic">Basic (Simple)</option>
                                                     <option value="recursive">Recursive (Crawl Links)</option>
+                                                    <option value="sitemap">Sitemap (XML Sitemap)</option>
+                                                    <option value="pdf-async">PDF Documents (Async)</option>
+                                                    <option value="pdf">PDF Documents</option>
                                                     <option value="selenium">Selenium (For JS-heavy sites)</option>
                                                 </select>
                                             </div>
@@ -60,6 +63,10 @@
                                                     <option value="4">4</option>
                                                     <option value="5">5</option>
                                                 </select>
+                                            </div>
+                                            <div class="mb-3" id="max-pages-group" style="display:none;">
+                                                <label for="max-pages-input" class="form-label">Max Pages (for Sitemap):</label>
+                                                <input type="number" id="max-pages-input" class="form-control" placeholder="Leave empty for all pages" min="1" max="1000">
                                             </div>
                                             <button id="scrape-btn" class="btn btn-primary">Scrape URLs</button>
                                         </div>

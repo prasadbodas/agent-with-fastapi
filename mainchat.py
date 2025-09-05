@@ -349,6 +349,7 @@ async def load_code(request: Request):
 class ScrapeRequest(BaseModel):
     urls: List[str]
     max_depth: int = 2
+    max_pages: int = None
     method: str = 'async'
 
 @app.post("/scrape")
@@ -368,6 +369,19 @@ async def scrape_urls(request: ScrapeRequest):
             max_depth = request.max_depth if hasattr(request, 'max_depth') else 2
             print(f"max_depth: {max_depth}")
             documents = scraper.scrape_recursive(url, max_depth=max_depth)
+        elif request.method == 'sitemap':
+            # Use first URL as sitemap URL
+            sitemap_url = request.urls[0] if request.urls else None
+            if not sitemap_url:
+                return {"success": False, "error": "No sitemap URL provided."}
+            max_depth = request.max_depth if hasattr(request, 'max_depth') else 2
+            max_pages = request.max_pages if hasattr(request, 'max_pages') else None
+            documents = await scraper.scrape_sitemap(sitemap_url, max_depth=max_depth, max_pages=max_pages)
+        elif request.method == 'pdf-async':
+            # Scrape PDF URLs
+            if not request.urls:
+                return {"success": False, "error": "No PDF URLs provided."}
+            documents = await scraper.scrape_pdf_urls_async(request.urls)
         else:
             documents = scraper.scrape_basic_html(request.urls)
 
