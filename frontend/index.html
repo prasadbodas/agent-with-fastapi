@@ -30,6 +30,13 @@
                             <label for="vectorstore-select" class="form-label mb-0 small">Vectorstore:</label>
                             <select id="vectorstore-select" class="form-select form-select-sm" style="max-width: 250px;"></select>
                         </div>
+                        <div id="model-select-group" class="mt-2" style="display:none;">
+                            <label for="model-select" class="form-label mb-0 small">Model:</label>
+                            <select id="model-select" class="form-select form-select-sm" style="max-width: 200px;">
+                                <option value="ollama" selected>Ollama</option>
+                                <option value="openai">OpenAI</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="mb-3 d-flex align-items-end justify-content-between">

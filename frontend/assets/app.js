@@ -4,6 +4,8 @@ let socket;
 let messageHistory = [];
 let sessionId = localStorage.getItem('chat_session_id') || generateSessionId();
 let currentMode = localStorage.getItem('chat_mode') || 'agent';
+let currentStreamingMessage = null; // Track current streaming message for Ask mode
+let streamingTimeout = null; // Timeout to detect end of stream
 localStorage.setItem('chat_session_id', sessionId);
 localStorage.setItem('chat_mode', currentMode);
 
@@ -47,7 +49,7 @@ function renderMessages() {
         const wasAtBottom = chatBox.scrollHeight - chatBox.clientHeight <= chatBox.scrollTop + 1;
 
         chatBox.innerHTML = '';
-        messageHistory.forEach(({msg, sender, type}) => {
+        messageHistory.forEach(({msg, sender, type, streaming}) => {
             const div = document.createElement('div');
             var usageDiv = null;
             var toolDiv = null;
@@ -64,6 +66,13 @@ function renderMessages() {
                         msg_content = msg_json.rag.messages ? msg_json.rag.messages.content : msg_json;
 
                         putInnerHTMLOfMessage(div, msg_content);
+                        // Add streaming indicator if still streaming
+                        if (streaming) {
+                            const streamingIndicator = document.createElement('span');
+                            streamingIndicator.className = 'streaming-indicator';
+                            streamingIndicator.innerHTML = ' <span class="typing-dots">...</span>';
+                            div.appendChild(streamingIndicator);
+                        }
                         // Skip the rest of agent processing for RAG responses
                     } else if (msg_json.agent && msg_json.agent.messages && msg_json.agent.messages.length > 0) {
                         // Handle regular agent responses (existing logic)
@@ -122,9 +131,16 @@ function renderMessages() {
                         putInnerHTMLOfMessage(div, msg);
                     }
                 } catch (e) {
-                    // If JSON parsing fails, treat as plain text (for simple responses)
+                    // If JSON parsing fails, treat as plain text (for simple responses or streaming)
                     console.log('Failed to parse as JSON, treating as plain text:', e);
                     putInnerHTMLOfMessage(div, msg);
+                    // Add streaming indicator if still streaming
+                    if (streaming) {
+                        const streamingIndicator = document.createElement('span');
+                        streamingIndicator.className = 'streaming-indicator';
+                        streamingIndicator.innerHTML = ' <span class="typing-dots">...</span>';
+                        div.appendChild(streamingIndicator);
+                    }
                 }
             } else {
                 // For user messages, just use the original message content
@@ -233,13 +249,51 @@ function connectWebSocket() {
 
     socket.onmessage = function(event) {
         try {
-            // const data = JSON.parse(event.data);
-
-            messageHistory.push({msg: event.data, sender: "agent"});
-            renderMessages();
+            if (currentMode === 'ask') {
+                // Handle streaming for Ask mode
+                const chunk = event.data;
+                
+                if (currentStreamingMessage === null) {
+                    // Start new streaming message
+                    currentStreamingMessage = {
+                        msg: chunk,
+                        sender: "agent",
+                        streaming: true
+                    };
+                    messageHistory.push(currentStreamingMessage);
+                } else {
+                    // Append to existing streaming message
+                    currentStreamingMessage.msg += chunk;
+                }
+                
+                renderMessages();
+                
+                // Clear existing timeout and set new one
+                if (streamingTimeout) {
+                    clearTimeout(streamingTimeout);
+                }
+                
+                // Set timeout to detect end of stream (no new chunks for 1 second)
+                streamingTimeout = setTimeout(() => {
+                    if (currentStreamingMessage) {
+                        currentStreamingMessage.streaming = false;
+                        currentStreamingMessage = null;
+                        renderMessages(); // Final render to clean up any streaming indicators
+                    }
+                }, 1000);
+                
+            } else {
+                // Handle regular messages for Agent mode
+                messageHistory.push({msg: event.data, sender: "agent"});
+                renderMessages();
+            }
         } catch (e) {
             // Fallback for plain text messages
-            messageHistory.push({msg: event.data, sender: "agent"});
+            if (currentMode === 'ask' && currentStreamingMessage !== null) {
+                currentStreamingMessage.msg += event.data;
+            } else {
+                messageHistory.push({msg: event.data, sender: "agent"});
+            }
             renderMessages();
         }
     };
@@ -255,16 +309,30 @@ function connectWebSocket() {
 
 function sendMessage(message) {
     if (socket && socket.readyState === WebSocket.OPEN) {
+        // Reset streaming state for new message
+        if (currentMode === 'ask') {
+            currentStreamingMessage = null;
+            if (streamingTimeout) {
+                clearTimeout(streamingTimeout);
+                streamingTimeout = null;
+            }
+        }
+        
         let payload = {
             message,
             session_id: sessionId,
             mode: currentMode
         };
-        // If in RAG mode, add selected vectorstore
+        // If in RAG mode, add selected vectorstore and model
         if (currentMode === 'ask') {
-            const select = document.getElementById('vectorstore-select');
-            if (select && select.value) {
-                payload.vectorstore = select.value;
+            const vectorstoreSelect = document.getElementById('vectorstore-select');
+            if (vectorstoreSelect && vectorstoreSelect.value) {
+                payload.vectorstore = vectorstoreSelect.value;
+            }
+            
+            const modelSelect = document.getElementById('model-select');
+            if (modelSelect && modelSelect.value) {
+                payload.model_provider = modelSelect.value;
             }
         }
         socket.send(JSON.stringify(payload));
@@ -298,6 +366,8 @@ window.addEventListener('DOMContentLoaded', () => {
             if (this.checked) {
                 currentMode = this.value;
                 localStorage.setItem('chat_mode', currentMode);
+                // Reset streaming state when changing modes
+                currentStreamingMessage = null;
                 updateModeInfo();
                 updateVectorstoreVisibility();
                 // Reconnect WebSocket with new endpoint
@@ -369,10 +439,16 @@ function loadVectorstores() {
         });
 }
 
-// Show/hide vectorstore select based on mode
+// Show/hide vectorstore select and model select based on mode
 function updateVectorstoreVisibility() {
-    const group = document.getElementById('vectorstore-select-group');
-    if (group) {
-        group.style.display = (currentMode === 'ask') ? '' : 'none';
+    const vectorstoreGroup = document.getElementById('vectorstore-select-group');
+    const modelGroup = document.getElementById('model-select-group');
+    
+    if (vectorstoreGroup) {
+        vectorstoreGroup.style.display = (currentMode === 'ask') ? '' : 'none';
+    }
+    
+    if (modelGroup) {
+        modelGroup.style.display = (currentMode === 'ask') ? '' : 'none';
     }
 }

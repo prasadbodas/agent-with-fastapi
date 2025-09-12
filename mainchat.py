@@ -2,21 +2,22 @@ import getpass
 import json
 import os
 import sqlite3
+import time
 from contextlib import asynccontextmanager
 from typing import List
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.prebuilt import create_react_agent
-from langchain_ollama import OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_chroma import Chroma
+from chromadb.config import Settings
 from langchain_openai import ChatOpenAI
 from langchain.schema import Document
-from langchain_chroma import Chroma
 from pydantic import BaseModel
 from tools.odoo_tool import OdooTool
 
@@ -38,6 +39,9 @@ rag_model = None
 
 load_dotenv()
 
+# Disable ChromaDB telemetry
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
 DB_PATH = os.getenv("DB_PATH", "odoo_agent.db")
 
 def _set_env(key: str):
@@ -49,7 +53,8 @@ _set_env("OPENAI_API_KEY")
 model_name = os.getenv("model", "gpt-5-nano")
 
 model = ChatOpenAI(model=model_name)
-tools = [OdooTool()]
+# tools = [OdooTool()]
+tools = []
 prompt = (
     "You are an expert Odoo ReAct agent that can answer questions and perform tasks using the tools provided.\n"
     "Always use 1 tool at a time, and only when necessary.\n"
@@ -262,7 +267,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.websocket("/ws/ask")
 async def websocket_ask_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for RAG-enabled ask mode"""
+    """WebSocket endpoint for RAG-enabled ask mode with streaming"""
     await websocket.accept()
     try:
         while True:
@@ -270,13 +275,17 @@ async def websocket_ask_endpoint(websocket: WebSocket):
             user_message = data.get("message", "")
             session_id = data.get("session_id")
             vectorstore_name = data.get("vectorstore")
+            model_provider = data.get("model_provider", "ollama")  # Default to ollama
             if not session_id:
                 await websocket.send_text("Error: session_id is required.")
                 continue
             save_message(session_id, "user", user_message)
-            # Pass vectorstore_name to RAG-enabled ask mode response
-            response = await rag_enabled_ask(user_message, session_id, vectorstore_name)
-            await websocket.send_text(response)
+            
+            # Stream the response chunks
+            async for chunk in rag_enabled_ask(user_message, session_id, vectorstore_name, model_provider):
+                if isinstance(chunk, str) and chunk.strip():
+                    # Send each chunk as it becomes available
+                    await websocket.send_text(chunk)
     except WebSocketDisconnect:
         pass
 
@@ -399,6 +408,116 @@ async def load_pdfs(pdf_files: List[UploadFile] = File(...)):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.post("/load-csvs")
+async def load_csvs(csv_files: List[UploadFile] = File(...)):
+    """
+    Upload and process CSV files.
+    Expects multipart/form-data with CSV files and configuration.
+    """
+    import tempfile
+    import os
+    from rag.scraper import WebScraper
+    
+    if not csv_files:
+        return {"success": False, "error": "No CSV files provided"}
+    
+    scraper = WebScraper()
+    all_documents = []
+    
+    try:
+        for csv_file in csv_files:
+            # Validate file type
+            if not csv_file.filename.lower().endswith('.csv'):
+                continue
+                
+            # Save uploaded file to temporary location
+            with tempfile.NamedTemporaryFile(suffix='.csv', delete=False, mode='w+b') as temp_file:
+                content = await csv_file.read()
+                temp_file.write(content)
+                temp_path = temp_file.name
+            
+            try:
+                # Process the CSV file
+                documents = scraper.scrape_local_csv(temp_path)
+                
+                # Update metadata with original filename
+                for doc in documents:
+                    doc.metadata['source'] = csv_file.filename
+                    doc.metadata['original_filename'] = csv_file.filename
+                    doc.metadata['file_type'] = 'csv'
+                
+                all_documents.extend(documents)
+                
+            finally:
+                # Clean up temporary file
+                os.unlink(temp_path)
+        
+        # Convert documents to JSON-serializable format
+        docs_json = [
+            {"page_content": doc.page_content, "metadata": doc.metadata}
+            for doc in all_documents
+        ]
+        
+        return {"success": True, "documents": docs_json}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/load-docx")
+async def load_docx(docx_files: List[UploadFile] = File(...)):
+    """
+    Upload and process DOCX files.
+    Expects multipart/form-data with DOCX files.
+    """
+    import tempfile
+    import os
+    from rag.scraper import WebScraper
+    
+    if not docx_files:
+        return {"success": False, "error": "No DOCX files provided"}
+    
+    scraper = WebScraper()
+    all_documents = []
+    
+    try:
+        for docx_file in docx_files:
+            # Validate file type
+            if not (docx_file.filename.lower().endswith('.docx') or docx_file.filename.lower().endswith('.doc')):
+                continue
+                
+            # Save uploaded file to temporary location
+            with tempfile.NamedTemporaryFile(suffix='.docx', delete=False, mode='w+b') as temp_file:
+                content = await docx_file.read()
+                temp_file.write(content)
+                temp_path = temp_file.name
+            
+            try:
+                # Process the DOCX file
+                documents = scraper.scrape_local_docx(temp_path)
+                
+                # Update metadata with original filename
+                for doc in documents:
+                    doc.metadata['source'] = docx_file.filename
+                    doc.metadata['original_filename'] = docx_file.filename
+                    doc.metadata['file_type'] = 'docx'
+                
+                all_documents.extend(documents)
+                
+            finally:
+                # Clean up temporary file
+                os.unlink(temp_path)
+        
+        # Convert documents to JSON-serializable format
+        docs_json = [
+            {"page_content": doc.page_content, "metadata": doc.metadata}
+            for doc in all_documents
+        ]
+        
+        return {"success": True, "documents": docs_json}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 class ScrapeRequest(BaseModel):
     urls: List[str]
     max_depth: int = 2
@@ -455,28 +574,62 @@ class VectorStoreRequest(BaseModel):
 @app.post("/create-vectorstore")
 async def create_vectorstore(request: VectorStoreRequest):
     try:
-        # Re-create Document objects from the received JSON
-        documents = [
-            Document(page_content=doc['page_content'], metadata=doc['metadata'])
-            for doc in request.documents
-        ]
+        # Re-create Document objects from the received JSON with metadata cleaning
+        documents = []
+        for doc_data in request.documents:
+            # Clean metadata to ensure compatibility with Chroma
+            cleaned_metadata = clean_metadata_for_vectorstore(doc_data['metadata'])
+            
+            documents.append(
+                Document(
+                    page_content=doc_data['page_content'], 
+                    metadata=cleaned_metadata
+                )
+            )
+        
         embedding_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text:latest")
         embeddings = OllamaEmbeddings(model=embedding_model_name)
         persist_dir = os.path.join("vectorstores", request.name)
         os.makedirs(persist_dir, exist_ok=True)
+        
         vectorstore = Chroma.from_documents(
             documents=documents,
             embedding=embeddings,
             persist_directory=persist_dir
         )
-        # vectorstore.persist()
-        return {"success": True, "path": persist_dir}
+        
+        return {"success": True, "path": persist_dir, "document_count": len(documents)}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-async def rag_enabled_ask(user_message, session_id, vectorstore_name=None):
+def clean_metadata_for_vectorstore(metadata: dict) -> dict:
+    """
+    Clean metadata to ensure compatibility with Chroma vectorstore.
+    Converts complex types to simple scalars.
+    """
+    cleaned = {}
+    
+    for key, value in metadata.items():
+        if value is None:
+            cleaned[key] = None
+        elif isinstance(value, (str, int, float, bool)):
+            cleaned[key] = value
+        elif isinstance(value, list):
+            # Convert lists to comma-separated strings
+            cleaned[key] = ', '.join(str(item) for item in value if item is not None)
+        elif isinstance(value, dict):
+            # Convert dicts to JSON strings
+            cleaned[key] = json.dumps(value)
+        else:
+            # Convert other types to strings
+            cleaned[key] = str(value)
+    
+    return cleaned
+
+async def rag_enabled_ask(user_message, session_id, vectorstore_name=None, model_provider="ollama"):
     global vectorstore, embeddings, rag_model
     print("RAG enabled ask called")
+    print(f"Using model provider: {model_provider}")
     print(vectorstore)
 
     # Always reload vectorstore if a name is provided (per request)
@@ -486,7 +639,8 @@ async def rag_enabled_ask(user_message, session_id, vectorstore_name=None):
     if vectorstore_name:
         vectorstore_path = os.path.join("vectorstores", vectorstore_name)
         if not os.path.exists(vectorstore_path):
-            return f"Error: Vector store '{vectorstore_name}' not found. Please create it first."
+            yield f"Error: Vector store '{vectorstore_name}' not found. Please create it first."
+            return
         vectorstore = Chroma(
             persist_directory=vectorstore_path,
             embedding_function=embeddings
@@ -495,28 +649,42 @@ async def rag_enabled_ask(user_message, session_id, vectorstore_name=None):
         # fallback to default
         vectorstore_path = "vectorstores/zehntech_advance_dashboard"
         if not os.path.exists(vectorstore_path):
-            return "Error: Vector store not found. Please create it first."
+            yield "Error: Vector store not found. Please create it first."
+            return
         vectorstore = Chroma(
             persist_directory=vectorstore_path,
             embedding_function=embeddings
         )
-    if rag_model is None:
-        model_name = os.getenv("MODEL", "gpt-5-nano")
+    
+    # Initialize RAG model based on provider selection
+    if model_provider == "openai":
+        model_name = os.getenv("model", "gpt-4o-mini")
         rag_model = ChatOpenAI(model=model_name)
+    else:  # Default to ollama
+        model_name = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+        rag_model = ChatOllama(model=model_name)
+
+    # get search string formated/corrected from LLM
+    # Create prompt with context
+    # pre_prompt = (
+    #     f"Rephrase the following user query to improve search results for relevant documents:\n\n"
+    #     f"Restrict the rephrased query to be concise and focused on key terms.\n\n"
+    #     f"Return only the rephrased query without any additional text, which directly goes into the search.\n\n"
+    #     f"User Query: {user_message}\n\n"
+    #     f"Rephrased Query:"
+    # )
+    # print(f"User message: {user_message}")
+    # formatted_message = rag_model.invoke(pre_prompt)
+    # print(f"Formatted message: {formatted_message.content}")
 
     # Retrieve relevant documents
-    relevant_docs = vectorstore.similarity_search(user_message, k=3)
+    # relevant_docs = vectorstore.similarity_search(formatted_message.content, k=5)
+    
+    relevant_docs = vectorstore.similarity_search(user_message, k=10)
     context = "\n\n".join([doc.page_content for doc in relevant_docs])
 
-    # Create prompt with context
     prompt = (
-        f"Use the following context to answer the question:\n\n{context}\n\n"
-        f"Question: {user_message}\n"
-        "Answer:"
-    )
-    
-    prompt = (
-        "You are an assistant for Odoo developers. Use the provided documentation context to answer clearly.\n\n"
+        "You are an helpful assistant. Use the provided documentation context to answer clearly.\n\n"
         "If unsure, say \"I don't know\" instead of guessing.\n\n"
         "Refuse hallucinations if no relevant docs found.\n\n"
         "Always cite doc section (from metadata).\n\n"
@@ -529,13 +697,32 @@ async def rag_enabled_ask(user_message, session_id, vectorstore_name=None):
 
     print(f"Prompt: {prompt}")
 
-    # Get response from the RAG model
-    response = rag_model.invoke(prompt)
-    print(f"Response: {response}")
-    ai_msg = ai_rag_message_to_dict(response)
-    # Save and return the response
+    # Stream response from the RAG model
+    full_response = ""
+    async for chunk in rag_model.astream(prompt):
+        if hasattr(chunk, 'content') and chunk.content:
+            full_response += chunk.content
+            # Yield each chunk for streaming
+            yield chunk.content
+    
+    # Save the complete response to database
+    ai_msg = ai_rag_message_to_dict_simple(full_response)
     save_message(session_id, "agent", ai_msg)
-    return ai_msg
+
+def ai_rag_message_to_dict_simple(content):
+    """Convert simple content to RAG message format."""
+    data = {
+        "rag": {
+            "messages": {
+                "content": content,
+                "additional_kwargs": {},
+                "response_metadata": {},
+                "id": f"rag_{int(time.time())}",
+                "usage_metadata": {}
+            }
+        }
+    }
+    return json.dumps(data)
 
 @app.post("/message")
 async def post_message(data: dict):

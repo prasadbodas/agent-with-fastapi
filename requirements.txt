@@ -114,3 +114,4 @@ langchain-chroma==0.2.5
 esprima==4.0.1
 pypdf==6.0.0
 python-multipart==0.0.20
+docx2txt==0.9

@@ -387,3 +387,42 @@ code {
 .tool-error .tool-result {
     border-left: 3px solid #f44336;
 }
+
+/* File upload styling */
+input[type="file"] {
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  padding: 12px;
+  background-color: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+input[type="file"]:hover {
+  border-color: #0d6efd;
+  background-color: #e7f1ff;
+}
+
+input[type="file"]:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  outline: 0;
+}
+
+/* Streaming indicator styles */
+.streaming-indicator {
+  color: #6c757d;
+  font-style: italic;
+}
+
+.typing-dots {
+  animation: typing 1.5s infinite;
+}
+
+@keyframes typing {
+  0%, 60% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.5;
+  }
+}

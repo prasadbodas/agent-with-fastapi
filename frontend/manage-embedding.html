@@ -35,6 +35,8 @@
                                             <select id="data-source-type" class="form-select">
                                                 <option value="web" selected>Web Scraping</option>
                                                 <option value="pdf">PDF Documents</option>
+                                                <option value="csv">CSV Documents</option>
+                                                <option value="docx">Word Documents (DOC/DOCX)</option>
                                                 <option value="code">Source Code Directory (Python)</option>
                                             </select>
                                         </div>
@@ -83,6 +85,21 @@
                                                 <input type="file" id="pdf-upload-input" name="pdf_files[]" class="form-control" accept=".pdf" multiple>
                                             </div>
                                             <button id="scrape-pdf-btn" class="btn btn-primary">Upload PDFs & Scrape</button>
+                                        </div>
+                                        <div id="csv-source-section" style="display:none;">
+                                            <div class="mb-3">
+                                                <label for="csv-upload-input" class="form-label">Upload CSV Files:</label>
+                                                <input type="file" id="csv-upload-input" name="csv_files[]" class="form-control" accept=".csv" multiple>
+                                            </div>
+                                            <button id="scrape-csv-btn" class="btn btn-primary">Upload CSVs & Scrape</button>
+                                        </div>
+                                        <div id="docx-source-section" style="display:none;">
+                                            <div class="mb-3">
+                                                <label for="docx-upload-input" class="form-label">Upload Word Documents:</label>
+                                                <input type="file" id="docx-upload-input" name="docx_files[]" class="form-control" accept=".doc,.docx" multiple>
+                                                <small class="form-text text-muted">Supports .doc and .docx files</small>
+                                            </div>
+                                            <button id="scrape-docx-btn" class="btn btn-primary">Upload Word Docs & Scrape</button>
                                         </div>
                                     </div>
                                 </div>

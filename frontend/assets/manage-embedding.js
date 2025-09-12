@@ -5,9 +5,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const webSourceSection = document.getElementById('web-source-section');
     const codeSourceSection = document.getElementById('code-source-section');
     const pdfSourceSection = document.getElementById('pdf-source-section');
+    const csvSourceSection = document.getElementById('csv-source-section');
+    const docxSourceSection = document.getElementById('docx-source-section');
     const scrapeBtn = document.getElementById('scrape-btn');
     const loadCodeBtn = document.getElementById('load-code-btn');
     const scrapePdfBtn = document.getElementById('scrape-pdf-btn');
+    const scrapeCsvBtn = document.getElementById('scrape-csv-btn');
+    const scrapeDocxBtn = document.getElementById('scrape-docx-btn');
     const createVectorstoreBtn = document.getElementById('create-vectorstore-btn');
     const clearDocumentsBtn = document.getElementById('clear-documents-btn');
     const urlsInput = document.getElementById('urls-input');
@@ -109,14 +113,32 @@ document.addEventListener('DOMContentLoaded', () => {
             webSourceSection.style.display = '';
             codeSourceSection.style.display = 'none';
             pdfSourceSection.style.display = 'none';
+            csvSourceSection.style.display = 'none';
+            docxSourceSection.style.display = 'none';
         }else if (dataSourceType.value == 'pdf') {
             webSourceSection.style.display = 'none';
             codeSourceSection.style.display = 'none';
             pdfSourceSection.style.display = '';
+            csvSourceSection.style.display = 'none';
+            docxSourceSection.style.display = 'none';
+        } else if (dataSourceType.value == 'csv') {
+            webSourceSection.style.display = 'none';
+            codeSourceSection.style.display = 'none';
+            pdfSourceSection.style.display = 'none';
+            csvSourceSection.style.display = '';
+            docxSourceSection.style.display = 'none';
+        } else if (dataSourceType.value == 'docx') {
+            webSourceSection.style.display = 'none';
+            codeSourceSection.style.display = 'none';
+            pdfSourceSection.style.display = 'none';
+            csvSourceSection.style.display = 'none';
+            docxSourceSection.style.display = '';
         } else {
             webSourceSection.style.display = 'none';
             codeSourceSection.style.display = '';
             pdfSourceSection.style.display = 'none';
+            csvSourceSection.style.display = 'none';
+            docxSourceSection.style.display = 'none';
         }
     });
 
@@ -233,6 +255,94 @@ document.addEventListener('DOMContentLoaded', () => {
             logMessage(`An error occurred: ${error.message}`, 'error');
         } finally {
             scrapePdfBtn.disabled = false;
+        }
+    });
+
+    scrapeCsvBtn.addEventListener('click', async () => {
+        const csvFiles = document.getElementById('csv-upload-input').files;
+        
+        if (csvFiles.length === 0) {
+            logMessage('Please select CSV files to upload.', 'error');
+            return;
+        }
+        
+        logMessage(`Uploading and processing ${csvFiles.length} CSV file(s)...`);
+        scrapeCsvBtn.disabled = true;
+        
+        try {
+            const formData = new FormData();
+            
+            // Add all CSV files to FormData
+            for (let i = 0; i < csvFiles.length; i++) {
+                formData.append('csv_files', csvFiles[i]);
+            }
+            
+            const response = await fetch('/load-csvs', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                scrapedDocuments = scrapedDocuments.concat(result.documents);
+                updateDocumentList();
+                logMessage(`Successfully processed ${result.documents.length} documents from CSV files.`, 'success');
+            } else {
+                logMessage(`CSV processing failed: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            logMessage(`An error occurred: ${error.message}`, 'error');
+        } finally {
+            scrapeCsvBtn.disabled = false;
+        }
+    });
+
+    scrapeDocxBtn.addEventListener('click', async () => {
+        const docxFiles = document.getElementById('docx-upload-input').files;
+        
+        if (docxFiles.length === 0) {
+            logMessage('Please select Word document files to upload.', 'error');
+            return;
+        }
+        
+        logMessage(`Uploading and processing ${docxFiles.length} Word document(s)...`);
+        scrapeDocxBtn.disabled = true;
+        
+        try {
+            const formData = new FormData();
+            
+            // Add all DOCX files to FormData
+            for (let i = 0; i < docxFiles.length; i++) {
+                formData.append('docx_files', docxFiles[i]);
+            }
+            
+            const response = await fetch('/load-docx', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                scrapedDocuments = scrapedDocuments.concat(result.documents);
+                updateDocumentList();
+                logMessage(`Successfully processed ${result.documents.length} documents from Word files.`, 'success');
+            } else {
+                logMessage(`Word document processing failed: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            logMessage(`An error occurred: ${error.message}`, 'error');
+        } finally {
+            scrapeDocxBtn.disabled = false;
         }
     });
 
