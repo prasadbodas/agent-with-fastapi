@@ -115,3 +115,4 @@ esprima==4.0.1
 pypdf==6.0.0
 python-multipart==0.0.20
 docx2txt==0.9
+langchain-mcp-adapters==0.1.9

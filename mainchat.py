@@ -27,11 +27,15 @@ from langchain_text_splitters import Language
 
 from rag.scraper import WebScraper
 
+import mainmcp
+from mainmcp import router as chat_mcp_router
+
 # app = FastAPI()
 sqlite3_checkpointer = None
 agent = None
 cursor = None
 conn = None
+base_tools = []
 # RAG components
 vectorstore = None
 embeddings = None
@@ -84,14 +88,31 @@ async def lifespan(app: FastAPI):
     # sqlite3_checkpointer = await AsyncSqliteSaver.from_conn_string(DB_PATH)
     async with AsyncSqliteSaver.from_conn_string(DB_PATH) as saver:
         sqlite3_checkpointer = saver
+        # Snapshot base tools (non-MCP) before adding MCP tools
+        global base_tools
+        base_tools = list(tools)
+
+        # Load MCP-based tools (if any) and merge into tools list
+        try:
+            await mainmcp.reload_mcp_client()
+            mcp_client = mainmcp.get_mcp_client()
+            if mcp_client is not None:
+                try:
+                    mcp_tools = await mcp_client.get_tools()
+                    if mcp_tools:
+                        tools.extend(mcp_tools)
+                except Exception as e:
+                    print('Error getting tools from MCP client:', e)
+        except Exception as e:
+            print('Error reloading MCP client at startup:', e)
+
         agent = create_react_agent(
             model,
             tools=tools,
             prompt=prompt,
             checkpointer=sqlite3_checkpointer
         )
-
-        # Database setup
+        # Database setup (chat history)
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("""
@@ -106,12 +127,37 @@ async def lifespan(app: FastAPI):
         conn.commit()
 
         yield
-
         # Cleanup
         # await sqlite3_checkpointer.close()
         # Close the database connection
         cursor.close()
         conn.close()
+
+async def recreate_agent_with_mcp_tools(model_provider="openai"):
+    global agent, tools, base_tools, sqlite3_checkpointer
+    # Reset tools to base tools
+    tools = list(base_tools)
+    # Try to attach MCP client tools
+    try:
+        await mainmcp.reload_mcp_client()
+        mcp_client = mainmcp.get_mcp_client()
+        if mcp_client is not None:
+            mcp_tools = await mcp_client.get_tools()
+            if mcp_tools:
+                tools.extend(mcp_tools)
+    except Exception as e:
+        print('Error reloading or fetching MCP tools:', e)
+    
+    # Recreate model based on provider selection
+    if model_provider == "openai":
+        model_name = os.getenv("model", "gpt-5-nano")
+        model = ChatOpenAI(model=model_name)
+    else:  # Default to ollama
+        ollama_model_name = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+        model = ChatOllama(model=ollama_model_name)
+    
+    # Recreate agent using same checkpointer
+    agent = create_react_agent(model, tools=tools, prompt=prompt, checkpointer=sqlite3_checkpointer)
 
 app = FastAPI(lifespan=lifespan)
 
@@ -123,8 +169,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(chat_mcp_router)
 
 app.mount("/static", StaticFiles(directory="frontend/assets"), name="static")
+
+
+@app.post('/mcp/reload-agent')
+async def reload_agent_endpoint(request: Request):
+    """Reload MCP client and recreate local agent with updated tools."""
+    res = await mainmcp.reload_mcp_client()
+    if not res.get('success'):
+        return JSONResponse({'success': False, 'error': res.get('error')}, status_code=500)
+    
+    model_provider = 'openai'
+    data = await request.json()
+    print("reload-agent data:")
+    print(data)
+    if data.get('model_provider'):
+        model_provider = data.get('model_provider')
+    await recreate_agent_with_mcp_tools(model_provider=model_provider)
+    return JSONResponse({'success': True, 'message': 'MCP reloaded and agent recreated'})
 
 # Route to list available vectorstores
 import glob

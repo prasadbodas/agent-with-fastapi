@@ -5,3 +5,4 @@ __pycache__/
 chat_history.db
 chat_history*
 vectorstores
+odoo_agent.db
