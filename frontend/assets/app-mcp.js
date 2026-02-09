@@ -9,9 +9,37 @@ let streamingTimeout = null; // Timeout to detect end of stream
 localStorage.setItem('chat_session_id', sessionId);
 localStorage.setItem('chat_mode', currentMode);
 
+// ============================================
+// THEME MANAGEMENT
+// ============================================
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    const icon = document.querySelector('.theme-toggle-icon');
+    if (icon) {
+        icon.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+}
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
 function generateSessionId() {
     return 'sess-' + Math.random().toString(36).substr(2, 16);
-    //sess-fxst5i1vm7b
 }
 
 function updateModeInfo() {
@@ -248,6 +276,12 @@ function connectWebSocket() {
     };
 
     socket.onmessage = function(event) {
+        // Remove loading state from send button
+        const sendBtn = document.getElementById('send-btn');
+        if (sendBtn && typeof window.removeButtonLoading === 'function') {
+            window.removeButtonLoading(sendBtn);
+        }
+        
         try {
             if (currentMode === 'ask') {
                 // Handle streaming for Ask mode
@@ -331,10 +365,45 @@ function sendMessage(message) {
         socket.send(JSON.stringify(payload));
     } else {
         console.error('WebSocket is not open');
+        showNotification('Connection error. Please refresh the page.', 'error');
     }
 }
 
+// ============================================
+// NOTIFICATION SYSTEM (Using Toast)
+// ============================================
+
+function showNotification(message, type = 'info') {
+    if (window.toast) {
+        window.toast.show(message, type);
+    } else {
+        // Fallback
+        const statusDiv = document.getElementById('status-message');
+        if (statusDiv) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+    }
+}
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
 window.addEventListener('DOMContentLoaded', () => {
+    // Initialize theme
+    initTheme();
+    
+    // Theme toggle event listener
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
     // Initialize mode from localStorage
     const savedMode = localStorage.getItem('chat_mode') || 'agent';
     currentMode = savedMode;
@@ -347,6 +416,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Update mode info text
     updateModeInfo();
+
+    // Initialize keyboard shortcuts
+    if (typeof window.initKeyboardShortcuts === 'function') {
+        window.initKeyboardShortcuts();
+    }
+    
+    // Create scroll to bottom button
+    if (typeof window.createScrollToBottomButton === 'function') {
+        window.createScrollToBottomButton();
+    }
 
     // Add event listeners for mode change
     const modeRadios = document.querySelectorAll('input[name="mode"]');
@@ -375,8 +454,10 @@ window.addEventListener('DOMContentLoaded', () => {
             if (msg) {
                 displayMessage(msg, "user");
                 sendMessage(msg);
-                input.value = '';
-            }
+                input.value = '';                // Add loading state
+                if (typeof window.addButtonLoading === 'function') {
+                    window.addButtonLoading(sendBtn, 'Sending...');
+                }            }
         });
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {

@@ -237,12 +237,57 @@ async def api_reload_mcp():
 
 @router.get("/mcp/tools")
 async def api_get_mcp_tools():
-    client = get_mcp_client()
-    if not client:
-        return JSONResponse({"tools": []})
-    tools = await client.get_tools()
-    tools_summary = [{"name": getattr(t, "name", None), "id": getattr(t, "id", getattr(t, "name", None))} for t in tools] if tools else []
-    return JSONResponse({"tools": tools_summary})
+    """Get all tools grouped by their MCP servers"""
+    ensure_mcps_table()
+    rows = list_mcps()
+    
+    tools_by_server = {}
+    all_tools = []
+    
+    # Iterate through each active server and get its tools
+    for server in rows:
+        if not server.get("active"):
+            continue
+            
+        server_name = server.get("name")
+        transport = server.get("transport")
+        
+        try:
+            # Create a single-server client
+            servers = {}
+            if transport == "http":
+                servers[server_name] = {"url": server.get("url"), "transport": "streamable_http"}
+            elif transport == "stdio":
+                args = []
+                try:
+                    args = json.loads(server.get("args") or "[]")
+                except Exception:
+                    args = []
+                servers[server_name] = {"command": server.get("command"), "args": args, "transport": "stdio"}
+            else:
+                continue
+            
+            # Get tools from this specific server
+            temp_client = MultiServerMCPClient(servers)
+            server_tools = await temp_client.get_tools()
+            
+            tools_by_server[server_name] = []
+            
+            for tool in server_tools:
+                tool_info = {
+                    "name": getattr(tool, "name", None),
+                    "id": getattr(tool, "id", getattr(tool, "name", None)),
+                    "description": getattr(tool, "description", ""),
+                    "server": server_name
+                }
+                tools_by_server[server_name].append(tool_info)
+                all_tools.append(tool_info)
+                
+        except Exception as e:
+            logger.warning(f"Failed to get tools from server {server_name}: {e}")
+            tools_by_server[server_name] = []
+    
+    return JSONResponse({"tools": all_tools, "tools_by_server": tools_by_server})
 
 
 @router.post("/mcp/test")

@@ -80,6 +80,86 @@ prompt = (
     "{tools}"
 )
 
+prompt = """
+    You are an expert Odoo Technical Architect and Senior Odoo Developer
+    with deep expertise in Odoo versions 16-19, Python, PostgreSQL, OWL,
+    XML views, security, and module packaging.
+
+    Your primary responsibility is to DESIGN and GENERATE complete,
+    production-ready Odoo addons.
+
+    You MUST strictly follow Odoo development best practices and conventions.
+
+    ----------------------------------
+    CORE RESPONSIBILITIES
+    ----------------------------------
+
+    1. Analyze user requirements and convert them into:
+    - Module architecture
+    - Data models
+    - Business logic
+    - Views and UI behavior
+    - Security and access rules
+
+    2. Always generate Odoo modules with:
+    - Proper directory structure
+    - __manifest__.py
+    - __init__.py files
+    - models/, views/, security/, data/, static/ (when applicable)
+    - XML views with correct inheritance and xpath usage
+    - Python code compliant with Odoo ORM and API decorators
+
+    3. Ensure compatibility with the specified Odoo version.
+    - If version is not mentioned, default to latest stable (Odoo 19).
+
+    ----------------------------------
+    STRICT RULES
+    ----------------------------------
+
+    - NEVER generate pseudo-code.
+    - NEVER mix Django/FastAPI/Flask patterns with Odoo.
+    - NEVER assume external services unless explicitly mentioned.
+    - ALWAYS use Odoo ORM (models.Model, fields, api).
+    - ALWAYS define access rights and record rules when models are created.
+    - ALWAYS include technical_name, depends, version, summary, description in manifest.
+
+    ----------------------------------
+    OUTPUT FORMAT
+    ----------------------------------
+
+    When generating a module:
+    1. First show a high-level module overview.
+    2. Then generate a clear folder structure.
+    3. Then generate each file with:
+    - File path as a heading
+    - You don't have to write code in response if using tools. Just describe the file structure.
+    4. Keep responses structured and readable.
+
+    ----------------------------------
+    SPECIAL CAPABILITIES
+    ----------------------------------
+
+    - Can refactor existing modules
+    - Can migrate modules between Odoo versions
+    - Can generate OWL components for backend UI
+    - Can optimize performance and security
+    - Can explain installation and usage steps
+
+    ----------------------------------
+    THINKING STRATEGY
+    ----------------------------------
+
+    - Think step-by-step internally.
+    - Validate business logic before writing code.
+    - Prefer simplicity, scalability, and maintainability.
+
+    You are not a general-purpose chatbot.
+    You are a specialized Odoo Module Generator.
+    
+    "Here are the tools available to you:\n"
+    "{tools}"
+"""
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cursor, conn, sqlite3_checkpointer, agent, prompt, model
@@ -288,7 +368,10 @@ def ai_tool_message_to_dict(response):
 # Streaming ReAct agent using create_react_agent
 async def react_agent_stream(user_message, session_id):
 
-    config = {"configurable": {"thread_id": session_id}}
+    config = {
+        "configurable": {"thread_id": session_id},
+        "recursion_limit": 50,
+    }
     async for step in agent.astream(
         {"messages": [{"role": "user", "content": user_message}]},
         config=config,
@@ -360,6 +443,14 @@ async def get_ui():
 @app.get("/embeddings")
 async def get_embedding_ui():
     return FileResponse("frontend/manage-embedding.html")
+
+@app.get("/demo")
+async def get_demo_ui():
+    return FileResponse("frontend/demo.html")
+
+@app.get("/redesign")
+async def get_redesign_ui():
+    return FileResponse("frontend/index-redesign.html")
 
 @app.post("/load-code")
 async def load_code(request: Request):
@@ -807,5 +898,345 @@ async def get_state_history_route(session_id: str):
 
     async for record in sqlite3_checkpointer.alist(config):
         state_history.append(record)
+
+    return {"state_history": state_history}
+
+# New API endpoints for redesigned UI
+
+@app.get("/api/conversations")
+async def get_conversations():
+    """Get all conversations with metadata"""
+    try:
+        cursor.execute("""
+            SELECT DISTINCT session_id, 
+                   MIN(timestamp) as first_message,
+                   MAX(timestamp) as last_message,
+                   COUNT(*) as message_count
+            FROM chat_history 
+            GROUP BY session_id 
+            ORDER BY last_message DESC
+        """)
+        conversations = []
+        for row in cursor.fetchall():
+            # Get first user message as title
+            cursor.execute("""
+                SELECT message FROM chat_history 
+                WHERE session_id = ? AND sender = 'user' 
+                ORDER BY timestamp ASC LIMIT 1
+            """, (row[0],))
+            first_msg = cursor.fetchone()
+            title = first_msg[0][:50] + "..." if first_msg and len(first_msg[0]) > 50 else (first_msg[0] if first_msg else "New Chat")
+            
+            conversations.append({
+                "id": row[0],
+                "title": title,
+                "timestamp": row[2],  # last_message
+                "messageCount": row[3]
+            })
+        return conversations
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/conversations/{conversation_id}/messages")
+async def get_conversation_messages(conversation_id: str):
+    """Get all messages for a conversation"""
+    try:
+        messages = get_history(conversation_id)
+        return messages
+        result = []
+        for msg in messages:
+            role = msg["sender"]
+            content = msg["msg"]
+            usage_metadata = None
+            
+            # Parse JSON messages from agent (they're stored as JSON strings)
+            if role == "agent":
+                try:
+                    parsed = json.loads(content)
+                    
+                    # Check if this is a standalone tool response message (only has tools, no agent content)
+                    if "tools" in parsed and "agent" not in parsed and "rag" not in parsed:
+                        # This is a standalone tool response message
+                        tool_msgs = parsed["tools"]["messages"]
+                        if tool_msgs and len(tool_msgs) > 0:
+                            for tool_msg in tool_msgs:
+                                tool_content = tool_msg.get("content", "")
+                                tool_name = tool_msg.get("name", "Tool")
+                                tool_call_id = tool_msg.get("tool_call_id")
+                                tool_status = tool_msg.get("status", "success")
+                                if tool_content and tool_content.strip():
+                                    tool_data = {
+                                        "role": "tool",
+                                        "content": tool_content,
+                                        "tool_name": tool_name,
+                                        "timestamp": msg.get("timestamp")
+                                    }
+                                    if tool_call_id:
+                                        tool_data["tool_call_id"] = tool_call_id
+                                    if tool_status:
+                                        tool_data["status"] = tool_status
+                                    result.append(tool_data)
+                        # Skip adding this message as an agent message since it's only tools
+                        continue
+                    
+                    # Handle mixed messages with both agent content and tool calls
+                    if "tools" in parsed and "messages" in parsed["tools"]:
+                        tool_msgs = parsed["tools"]["messages"]
+                        if tool_msgs and len(tool_msgs) > 0:
+                            for tool_msg in tool_msgs:
+                                tool_content = tool_msg.get("content", "")
+                                tool_name = tool_msg.get("name", "Tool")
+                                tool_call_id = tool_msg.get("tool_call_id")
+                                tool_status = tool_msg.get("status", "success")
+                                if tool_content and tool_content.strip():
+                                    tool_data = {
+                                        "role": "tool",
+                                        "content": tool_content,
+                                        "tool_name": tool_name,
+                                        "timestamp": msg.get("timestamp")
+                                    }
+                                    if tool_call_id:
+                                        tool_data["tool_call_id"] = tool_call_id
+                                    if tool_status:
+                                        tool_data["status"] = tool_status
+                                    result.append(tool_data)
+                        # Continue to process the agent message below
+                    
+                    # Extract actual content from the nested structure
+                    if "agent" in parsed and "messages" in parsed["agent"]:
+                        # Get the last message content and usage metadata
+                        agent_msgs = parsed["agent"]["messages"]
+                        if agent_msgs and len(agent_msgs) > 0:
+                            last_msg = agent_msgs[-1]
+                            content = last_msg.get("content", "")
+                            usage_metadata = last_msg.get("usage_metadata")
+                    elif "rag" in parsed and "messages" in parsed["rag"]:
+                        rag_msg = parsed["rag"]["messages"]
+                        content = rag_msg.get("content", "")
+                        usage_metadata = rag_msg.get("usage_metadata")
+                except (json.JSONDecodeError, KeyError, IndexError) as e:
+                    # If parsing fails, keep original content and log the error
+                    print(f"Failed to parse agent message: {e}")
+            
+            # Add the message (even if content is empty but has usage_metadata)
+            message_data = {
+                "role": role,
+                "content": content if content else "",
+                "timestamp": msg.get("timestamp")
+            }
+            if usage_metadata:
+                message_data["usage_metadata"] = usage_metadata
+            result.append(message_data)
+        
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.delete("/api/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str):
+    """Delete a conversation and all its messages"""
+    try:
+        cursor.execute("DELETE FROM chat_history WHERE session_id = ?", (conversation_id,))
+        conn.commit()
+        return {"status": "ok"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.put("/api/conversations/{conversation_id}")
+async def update_conversation(conversation_id: str, data: dict):
+    """Update conversation metadata (e.g., title)"""
+    # TODO: Add title column to database schema
+    return {"status": "ok", "message": "Title update not yet implemented"}
+
+@app.post("/api/upload-to-vectorstore")
+async def upload_to_vectorstore(
+    files: List[UploadFile] = File(...),
+    vectorstore_name: str = Form(...)
+):
+    """Upload files and add them to a vector store"""
+    import tempfile
+    import shutil
+    from pathlib import Path
+    from rag.scraper import WebScraper
+    
+    if not files:
+        return JSONResponse(status_code=400, content={"error": "No files provided"})
+    
+    if not vectorstore_name:
+        return JSONResponse(status_code=400, content={"error": "Vector store name required"})
+    
+    scraper = WebScraper()
+    all_documents = []
+    processed_files = []
+    
+    try:
+        for file in files:
+            filename = file.filename.lower()
+            
+            # Create temporary file
+            suffix = Path(filename).suffix
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, mode='w+b') as temp_file:
+                content = await file.read()
+                temp_file.write(content)
+                temp_path = temp_file.name
+            
+            try:
+                documents = []
+                
+                # Process based on file type
+                if filename.endswith('.pdf'):
+                    documents = scraper.scrape_local_pdf(temp_path)
+                elif filename.endswith('.csv'):
+                    documents = scraper.scrape_local_csv(temp_path)
+                elif filename.endswith(('.docx', '.doc')):
+                    documents = scraper.scrape_local_docx(temp_path)
+                elif filename.endswith('.txt'):
+                    with open(temp_path, 'r', encoding='utf-8') as f:
+                        text = f.read()
+                    from langchain.schema import Document
+                    documents = [Document(page_content=text, metadata={
+                        'source': file.filename,
+                        'file_type': 'txt'
+                    })]
+                else:
+                    # Unsupported file type
+                    continue
+                
+                # Update metadata
+                for doc in documents:
+                    doc.metadata['source'] = file.filename
+                    doc.metadata['original_filename'] = file.filename
+                    doc.metadata['vectorstore'] = vectorstore_name
+                
+                all_documents.extend(documents)
+                processed_files.append(file.filename)
+                
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+        
+        if not all_documents:
+            return JSONResponse(status_code=400, content={"error": "No valid documents processed"})
+        
+        # Create or update vector store
+        vectorstore_path = f"vectorstores/{vectorstore_name}"
+        os.makedirs(vectorstore_path, exist_ok=True)
+        
+        # Initialize or load existing vectorstore
+        vectorstore = Chroma(
+            collection_name=vectorstore_name,
+            embedding_function=embeddings,
+            persist_directory=vectorstore_path,
+            client_settings=Settings(anonymized_telemetry=False)
+        )
+        
+        # Add documents to vectorstore
+        vectorstore.add_documents(all_documents)
+        
+        return JSONResponse(content={
+            "success": True,
+            "vectorstore": vectorstore_name,
+            "files_processed": processed_files,
+            "document_count": len(all_documents)
+        })
+        
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.delete("/api/vectorstore/{vectorstore_name}")
+async def delete_vectorstore(vectorstore_name: str):
+    """Delete a vector store and all its data"""
+    import shutil
+    
+    try:
+        vectorstore_path = f"vectorstores/{vectorstore_name}"
+        
+        if os.path.exists(vectorstore_path):
+            shutil.rmtree(vectorstore_path)
+            return {"success": True, "message": f"Deleted {vectorstore_name}"}
+        else:
+            return JSONResponse(status_code=404, content={"error": "Vector store not found"})
+            
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/vectorstore/{vectorstore_name}/info")
+async def get_vectorstore_info(vectorstore_name: str):
+    """Get information about a vector store"""
+    try:
+        vectorstore_path = f"vectorstores/{vectorstore_name}"
+        
+        if not os.path.exists(vectorstore_path):
+            return JSONResponse(status_code=404, content={"error": "Vector store not found"})
+        
+        # Load vectorstore to get document count
+        vectorstore = Chroma(
+            collection_name=vectorstore_name,
+            embedding_function=embeddings,
+            persist_directory=vectorstore_path,
+            client_settings=Settings(anonymized_telemetry=False)
+        )
+        
+        # Get collection stats
+        collection = vectorstore._collection
+        count = collection.count()
+        
+        return {
+            "name": vectorstore_name,
+            "document_count": count,
+            "path": vectorstore_path
+        }
+        
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/execute-python")
+async def execute_python(data: dict):
+    """Execute Python code in a sandboxed environment"""
+    import subprocess
+    import tempfile
+    
+    code = data.get("code", "")
+    if not code:
+        return JSONResponse(status_code=400, content={"error": "No code provided"})
+    
+    try:
+        # Create a temporary file with the code
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            # Execute with timeout
+            result = subprocess.run(
+                ['python', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5  # 5 second timeout
+            )
+            
+            output = result.stdout
+            error = result.stderr
+            
+            if error:
+                return {"output": output, "error": error}
+            else:
+                return {"output": output or "Code executed successfully"}
+                
+        finally:
+            # Clean up
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+                
+    except subprocess.TimeoutExpired:
+        return JSONResponse(status_code=400, content={"error": "Code execution timed out (5s limit)"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Execution error: {str(e)}"})
+
 
     return state_history

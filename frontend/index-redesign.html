@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Assistant - Redesigned</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- Marked.js for markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Alpine.js for reactivity -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="static/theme.css">
+    <link rel="stylesheet" href="static/redesign.css">
+</head>
+<body x-data="appState()" x-init="init()" :class="theme">
+    <!-- Main layout: Sidebar + Content -->
+    <div class="app-layout">
+        <!-- Left Sidebar: Conversations -->
+        <aside class="conversations-sidebar" :class="{ 'collapsed': !showSidebar }">
+            <div class="sidebar-header">
+                <button @click="createNewConversation()" class="btn-new-chat">
+                    <i class="bi bi-plus-lg"></i>
+                    <span>New Chat</span>
+                </button>
+                <button @click="showSidebar = !showSidebar" class="btn-toggle-sidebar" aria-label="Toggle sidebar">
+                    <i class="bi bi-layout-sidebar"></i>
+                </button>
+            </div>
+
+            <div class="sidebar-search">
+                <input 
+                    type="text" 
+                    x-model="searchQuery" 
+                    @input="filterConversations()"
+                    placeholder="Search conversations..."
+                    class="search-input"
+                >
+                <i class="bi bi-search search-icon"></i>
+            </div>
+
+            <div class="conversations-list">
+                <!-- Loading skeleton -->
+                <template x-if="conversations.length === 0 && !conversationsLoaded">
+                    <div class="conversations-skeleton">
+                        <div class="skeleton-item"></div>
+                        <div class="skeleton-item"></div>
+                        <div class="skeleton-item"></div>
+                    </div>
+                </template>
+                
+                <!-- Today -->
+                <template x-if="todayConversations.length > 0">
+                    <div class="conversation-group">
+                        <div class="group-label">Today</div>
+                        <template x-for="conv in todayConversations" :key="conv.id">
+                            <div 
+                                class="conversation-item" 
+                                :class="{ 'active': currentConversation?.id === conv.id }"
+                                @click="switchConversation(conv)"
+                            >
+                                <i class="bi bi-chat-left-text"></i>
+                                <span class="conversation-title" x-text="conv.title"></span>
+                                <div class="conversation-actions">
+                                    <button @click.stop="renameConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button @click.stop="deleteConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Yesterday -->
+                <template x-if="yesterdayConversations.length > 0">
+                    <div class="conversation-group">
+                        <div class="group-label">Yesterday</div>
+                        <template x-for="conv in yesterdayConversations" :key="conv.id">
+                            <div 
+                                class="conversation-item" 
+                                :class="{ 'active': currentConversation?.id === conv.id }"
+                                @click="switchConversation(conv)"
+                            >
+                                <i class="bi bi-chat-left-text"></i>
+                                <span class="conversation-title" x-text="conv.title"></span>
+                                <div class="conversation-actions">
+                                    <button @click.stop="renameConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button @click.stop="deleteConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Last 7 days -->
+                <template x-if="last7DaysConversations.length > 0">
+                    <div class="conversation-group">
+                        <div class="group-label">Last 7 Days</div>
+                        <template x-for="conv in last7DaysConversations" :key="conv.id">
+                            <div 
+                                class="conversation-item" 
+                                :class="{ 'active': currentConversation?.id === conv.id }"
+                                @click="switchConversation(conv)"
+                            >
+                                <i class="bi bi-chat-left-text"></i>
+                                <span class="conversation-title" x-text="conv.title"></span>
+                                <div class="conversation-actions">
+                                    <button @click.stop="renameConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button @click.stop="deleteConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Older -->
+                <template x-if="olderConversations.length > 0">
+                    <div class="conversation-group">
+                        <div class="group-label">Older</div>
+                        <template x-for="conv in olderConversations" :key="conv.id">
+                            <div 
+                                class="conversation-item" 
+                                :class="{ 'active': currentConversation?.id === conv.id }"
+                                @click="switchConversation(conv)"
+                            >
+                                <i class="bi bi-chat-left-text"></i>
+                                <span class="conversation-title" x-text="conv.title"></span>
+                                <div class="conversation-actions">
+                                    <button @click.stop="renameConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button @click.stop="deleteConversation(conv)" class="btn-icon">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Empty state -->
+                <template x-if="conversations.length === 0">
+                    <div class="empty-conversations">
+                        <i class="bi bi-chat-dots"></i>
+                        <p>No conversations yet</p>
+                        <small>Start a new chat to begin</small>
+                    </div>
+                </template>
+            </div>
+
+            <div class="sidebar-footer">
+                <button @click="toggleTheme()" class="btn-icon" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+                    <i :class="theme === 'dark' ? 'bi bi-sun' : 'bi bi-moon'"></i>
+                </button>
+                <button @click="showSettings = true" class="btn-icon" aria-label="Settings">
+                    <i class="bi bi-gear"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main content area -->
+        <main class="main-content">
+            <!-- Top navigation bar -->
+            <header class="content-header">
+                <div class="header-left">
+                    <button @click="showSidebar = !showSidebar" class="btn-toggle-sidebar mobile-only">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <h1 class="conversation-title-header" x-text="currentConversation?.title || 'New Chat'"></h1>
+                </div>
+                <div class="header-right">
+                    <!-- Context indicators -->
+                    <div class="context-indicators">
+                        <template x-if="activeVectorStore">
+                            <div class="context-badge" @click="showKnowledgePanel = true">
+                                <i class="bi bi-database"></i>
+                                <span x-text="activeVectorStore"></span>
+                            </div>
+                        </template>
+                        <template x-if="enabledTools.length > 0">
+                            <div class="context-badge" @click="showToolsPanel = true">
+                                <i class="bi bi-tools"></i>
+                                <span x-text="enabledTools.length + ' tools'"></span>
+                            </div>
+                        </template>
+                        <!-- Always visible tools button -->
+                        <button @click="showToolsPanel = true; showKnowledgePanel = false" class="btn-icon" title="MCP Tools">
+                            <i class="bi bi-gear-wide-connected"></i>
+                        </button>
+                        <button @click="showKnowledgePanel = true; showToolsPanel = false" class="btn-icon" title="Knowledge Base">
+                            <i class="bi bi-database"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Chat area -->
+            <div class="chat-container" 
+                 x-ref="chatContainer"
+                 @drop.prevent="handleDrop($event)"
+                 @dragover.prevent="isDragging = true"
+                 @dragleave.prevent="isDragging = false"
+                 @dragend.prevent="isDragging = false"
+                 :class="{ 'drag-active': isDragging }"
+                 role="log"
+                 aria-live="polite"
+                 aria-label="Chat messages">
+                
+                <!-- Drag overlay -->
+                <div x-show="isDragging" class="drag-overlay" aria-hidden="true">
+                    <div class="drag-overlay-content">
+                        <i class="bi bi-cloud-upload"></i>
+                        <h3>Drop files here</h3>
+                        <p>Files will be added to your knowledge base</p>
+                    </div>
+                </div>
+
+                <template x-if="messages.length === 0">
+                    <div class="chat-empty-state">
+                        <div class="empty-state-icon">
+                            <i class="bi bi-chat-dots"></i>
+                        </div>
+                        <h2>How can I help you today?</h2>
+                        <div class="suggested-prompts">
+                            <button @click="sendMessage('Explain quantum computing in simple terms')" class="suggested-prompt">
+                                <i class="bi bi-lightbulb"></i>
+                                <span>Explain quantum computing</span>
+                            </button>
+                            <button @click="sendMessage('Write a Python function to sort a list')" class="suggested-prompt">
+                                <i class="bi bi-code-square"></i>
+                                <span>Write Python code</span>
+                            </button>
+                            <button @click="sendMessage('Help me plan a weekend trip')" class="suggested-prompt">
+                                <i class="bi bi-map"></i>
+                                <span>Plan a trip</span>
+                            </button>
+                            <button @click="sendMessage('Summarize recent AI developments')" class="suggested-prompt">
+                                <i class="bi bi-newspaper"></i>
+                                <span>AI news summary</span>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="messages-list">
+                    <template x-for="(msg, index) in messages" :key="index">
+                        <div class="message" :class="'message-' + (msg.role || msg.sender)">
+                            <div class="message-avatar">
+                                <template x-if="(msg.role || msg.sender) === 'user'">
+                                    <i class="bi bi-person-circle"></i>
+                                </template>
+                                <template x-if="(msg.role || msg.sender) === 'agent' || (msg.role || msg.sender) === 'assistant'">
+                                    <i class="bi bi-cpu"></i>
+                                </template>
+                                <template x-if="(msg.role || msg.sender) === 'tool'">
+                                    <i class="bi bi-tools"></i>
+                                </template>
+                            </div>
+                            <div class="message-content">
+                                <template x-if="(msg.role || msg.sender) === 'tool'">
+                                    <div x-html="renderToolResponse(msg)"></div>
+                                </template>
+                                <template x-if="(msg.role || msg.sender) !== 'tool'">
+                                    <div>
+                                        <div x-html="renderAgentMessage(msg)"></div>
+                                        <div class="message-actions">
+                                            <template x-if="((msg.role || msg.sender) === 'agent' || (msg.role || msg.sender) === 'assistant') && detectCodeInMessage(msg.content)">
+                                                <button @click="(() => { const detected = detectCodeInMessage(msg.content); openCanvas(detected.content, detected.type, detected.language, detected.content); })()" class="btn-icon btn-canvas" title="View in Canvas">
+                                                    <i class="bi bi-window-sidebar"></i>
+                                                </button>
+                                            </template>
+                                            <button @click="copyMessage(msg)" class="btn-icon" title="Copy">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
+                                            <template x-if="(msg.role || msg.sender) === 'agent' || (msg.role || msg.sender) === 'assistant'">
+                                                <button @click="regenerateMessage(index)" class="btn-icon" title="Regenerate">
+                                                    <i class="bi bi-arrow-clockwise"></i>
+                                                </button>
+                                            </template>
+                                            <button @click="editMessage(msg, index)" class="btn-icon" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button @click="deleteMessage(index)" class="btn-icon" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Loading indicator -->
+                    <template x-if="isLoading">
+                        <div class="message message-assistant">
+                            <div class="message-avatar">
+                                <i class="bi bi-cpu"></i>
+                            </div>
+                            <div class="message-content">
+                                <div class="typing-indicator">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                
+                <!-- Scroll to bottom button -->
+                <button 
+                    x-show="showScrollToBottom"
+                    @click="scrollToBottom()"
+                    class="btn-scroll-to-bottom"
+                    title="Scroll to bottom"
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 transform translate-y-2"
+                    x-transition:enter-end="opacity-100 transform translate-y-0"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="opacity-100 transform translate-y-0"
+                    x-transition:leave-end="opacity-0 transform translate-y-2"
+                >
+                    <i class="bi bi-arrow-down-circle-fill"></i>
+                </button>
+            </div>
+
+            <!-- Input area -->
+            <div class="input-container">
+                <!-- File attachments preview -->
+                <template x-if="attachedFiles.length > 0">
+                    <div class="attached-files">
+                        <template x-for="(file, index) in attachedFiles" :key="index">
+                            <div class="attached-file">
+                                <i class="bi bi-file-earmark"></i>
+                                <span x-text="file.name"></span>
+                                <button @click="removeFile(index)" class="btn-remove">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <div class="input-wrapper">
+                    <button @click="$refs.fileInput.click()" class="btn-attach" title="Attach file">
+                        <i class="bi bi-paperclip"></i>
+                    </button>
+                    <input 
+                        type="file" 
+                        x-ref="fileInput" 
+                        @change="handleFileSelect($event)" 
+                        style="display: none;"
+                        multiple
+                    >
+                    <textarea 
+                        x-ref="messageInput"
+                        x-model="currentMessage"
+                        @keydown.enter.prevent="handleEnter($event)"
+                        @input="autoResize($event)"
+                        placeholder="Type a message..."
+                        class="message-input"
+                        rows="1"
+                        aria-label="Message input"
+                        :aria-disabled="isLoading"
+                    ></textarea>
+                    <button 
+                        @click="isLoading ? stopGeneration() : sendCurrentMessage()" 
+                        class="btn-send"
+                        :class="{ 'btn-stop': isLoading }"
+                        :disabled="!currentMessage.trim() && attachedFiles.length === 0 && !isLoading"
+                    >
+                        <template x-if="isLoading">
+                            <i class="bi bi-stop-circle"></i>
+                        </template>
+                        <template x-if="!isLoading">
+                            <i class="bi bi-send"></i>
+                        </template>
+                    </button>
+                </div>
+
+                <div class="input-footer">
+                    <small class="text-muted">Press Enter to send, Shift+Enter for new line</small>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right panel: Tools/Knowledge (collapsible) -->
+        <aside class="right-panel" :class="{ 'show': showToolsPanel || showKnowledgePanel }">
+            <div class="panel-header">
+                <div class="panel-tabs">
+                    <button 
+                        @click="showToolsPanel = true; showKnowledgePanel = false"
+                        :class="{ 'active': showToolsPanel }"
+                        class="panel-tab"
+                    >
+                        <i class="bi bi-tools"></i>
+                        Tools
+                    </button>
+                    <button 
+                        @click="showKnowledgePanel = true; showToolsPanel = false"
+                        :class="{ 'active': showKnowledgePanel }"
+                        class="panel-tab"
+                    >
+                        <i class="bi bi-database"></i>
+                        Knowledge
+                    </button>
+                </div>
+                <button @click="showToolsPanel = false; showKnowledgePanel = false" class="btn-close-panel">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+
+            <div class="panel-content">
+                <!-- Tools Panel -->
+                <template x-if="showToolsPanel">
+                    <div class="tools-panel">
+                        <div class="panel-section">
+                            <div class="section-header">
+                                <h3>MCP Servers</h3>
+                                <div>
+                                    <button @click="openAddMCPModal()" class="btn-icon" title="Add MCP Server">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </button>
+                                    <button @click="refreshMCPTools()" class="btn-icon" title="Refresh tools">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <template x-if="mcpServers.length === 0">
+                                <div class="empty-panel">
+                                    <i class="bi bi-server"></i>
+                                    <p>No MCP servers configured</p>
+                                    <small>Click + to add an MCP server</small>
+                                </div>
+                            </template>
+                            
+                            <!-- MCP Servers List -->
+                            <template x-for="server in mcpServers" :key="server.id">
+                                <div class="mcp-server-item" :class="{ 'server-inactive': !server.active }">
+                                    <div class="server-header" @click="toggleServerExpansion(server.id)">
+                                        <div class="server-info">
+                                            <i class="bi" :class="expandedServers[server.id] ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
+                                            <i class="bi bi-server"></i>
+                                            <div>
+                                                <div class="server-name" x-text="server.name"></div>
+                                                <div class="server-meta">
+                                                    <span class="server-transport" x-text="server.transport"></span>
+                                                    <span class="server-status" :class="server.active ? 'status-active' : 'status-inactive'" x-text="server.active ? 'Active' : 'Inactive'"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="server-actions" @click.stop>
+                                            <label class="toggle-switch" title="Active/Inactive">
+                                                <input type="checkbox" :checked="server.active" @change="toggleServerActive(server)">
+                                                <span class="toggle-slider"></span>
+                                            </label>
+                                            <button @click="deleteMCPServer(server)" class="btn-icon btn-danger" title="Delete server">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Expanded Server Tools -->
+                                    <div x-show="expandedServers[server.id]" class="server-tools">
+                                        <template x-if="server.active && getServerTools(server.name).length > 0">
+                                            <div class="tools-list">
+                                                <template x-for="tool in getServerTools(server.name)" :key="tool.name">
+                                                    <div class="tool-item" :class="{ 'tool-executing': tool.executing }">
+                                                        <div class="tool-info">
+                                                            <i class="bi" :class="tool.enabled ? 'bi-gear-fill' : 'bi-gear'"></i>
+                                                            <div>
+                                                                <div class="tool-name" x-text="tool.name"></div>
+                                                                <div class="tool-description" x-text="tool.description || 'No description'"></div>
+                                                            </div>
+                                                        </div>
+                                                        <label class="toggle-switch">
+                                                            <input type="checkbox" x-model="tool.enabled" @change="toggleTool(tool)">
+                                                            <span class="toggle-slider"></span>
+                                                        </label>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        
+                                        <template x-if="!server.active">
+                                            <div class="server-tools-empty">
+                                                <i class="bi bi-exclamation-circle"></i>
+                                                <small>Server is inactive. Enable to see tools.</small>
+                                            </div>
+                                        </template>
+                                        
+                                        <template x-if="server.active && getServerTools(server.name).length === 0">
+                                            <div class="server-tools-empty">
+                                                <i class="bi bi-inbox"></i>
+                                                <small>No tools available from this server</small>
+                                            </div>
+                                        </template>
+                                        
+                                        <!-- Server Details -->
+                                        <div class="server-details">
+                                            <template x-if="server.command">
+                                                <div class="detail-item">
+                                                    <span class="detail-label">Command:</span>
+                                                    <code x-text="server.command"></code>
+                                                </div>
+                                            </template>
+                                            <template x-if="server.args && server.args.length > 0">
+                                                <div class="detail-item">
+                                                    <span class="detail-label">Args:</span>
+                                                    <code x-text="server.args.join(' ')"></code>
+                                                </div>
+                                            </template>
+                                            <template x-if="server.url">
+                                                <div class="detail-item">
+                                                    <span class="detail-label">URL:</span>
+                                                    <code x-text="server.url"></code>
+                                                </div>
+                                            </template>
+                                            <template x-if="server.metadata && Object.keys(server.metadata).length > 0">
+                                                <div class="detail-item">
+                                                    <span class="detail-label">Metadata:</span>
+                                                    <code x-text="JSON.stringify(server.metadata, null, 2)"></code>
+                                                </div>
+                                            </template>
+                                            <template x-if="server.created_at">
+                                                <div class="detail-item">
+                                                    <span class="detail-label">Created:</span>
+                                                    <span x-text="new Date(server.created_at).toLocaleString()"></span>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <template x-if="enabledTools.length > 0">
+                                <div class="tools-summary">
+                                    <i class="bi bi-check-circle"></i>
+                                    <span x-text="`${enabledTools.length} tool(s) enabled`"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Knowledge Panel -->
+                <template x-if="showKnowledgePanel">
+                    <div class="knowledge-panel">
+                        <div class="panel-section">
+                            <div class="section-header">
+                                <h3>Vector Stores</h3>
+                                <button @click="createVectorStore()" class="btn-icon" title="Create new vector store">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </div>
+                            
+                            <template x-if="attachedFiles.length > 0">
+                                <div class="files-ready-banner">
+                                    <i class="bi bi-info-circle"></i>
+                                    <span x-text="`${attachedFiles.length} file(s) ready to upload`"></span>
+                                    <button @click="attachedFiles = []" class="btn-clear">Clear</button>
+                                </div>
+                            </template>
+                            
+                            <template x-if="vectorStores.length === 0">
+                                <div class="empty-panel">
+                                    <i class="bi bi-database"></i>
+                                    <p>No vector stores yet</p>
+                                    <small>Attach files and create a vector store</small>
+                                </div>
+                            </template>
+                            
+                            <template x-for="store in vectorStores" :key="store.name">
+                                <div class="knowledge-item" :class="{ 'active': activeVectorStore === store.name }">
+                                    <div class="knowledge-info">
+                                        <i class="bi bi-database"></i>
+                                        <div>
+                                            <div class="knowledge-name" x-text="store.name"></div>
+                                            <div class="knowledge-stats" x-text="store.count + ' documents'"></div>
+                                        </div>
+                                    </div>
+                                    <div class="knowledge-actions">
+                                        <button @click="selectVectorStore(store)" class="btn-select" :title="activeVectorStore === store.name ? 'Deselect' : 'Select'">
+                                            <template x-if="activeVectorStore === store.name">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                            </template>
+                                            <template x-if="activeVectorStore !== store.name">
+                                                <i class="bi bi-circle"></i>
+                                            </template>
+                                        </button>
+                                        <button @click="addFilesToExistingStore(store.name)" class="btn-icon" title="Add files" x-show="attachedFiles.length > 0">
+                                            <i class="bi bi-plus"></i>
+                                        </button>
+                                        <button @click="deleteVectorStore(store)" class="btn-icon btn-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </aside>
+
+        <!-- Canvas/Artifacts Panel -->
+        <aside class="canvas-panel" :class="{ 'show': showCanvas }" x-show="showCanvas">
+            <div class="canvas-header">
+                <div class="canvas-tabs">
+                    <template x-for="tab in ['preview', 'code', 'data']" :key="tab">
+                        <button 
+                            @click="canvasTab = tab"
+                            :class="{ 'active': canvasTab === tab }"
+                            class="canvas-tab"
+                        >
+                            <i class="bi" :class="{
+                                'bi-eye': tab === 'preview',
+                                'bi-code-square': tab === 'code',
+                                'bi-table': tab === 'data'
+                            }"></i>
+                            <span x-text="tab.charAt(0).toUpperCase() + tab.slice(1)"></span>
+                        </button>
+                    </template>
+                </div>
+                <div class="canvas-actions">
+                    <button @click="copyCanvasContent()" class="btn-icon" title="Copy">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                    <button @click="downloadCanvas()" class="btn-icon" title="Download">
+                        <i class="bi bi-download"></i>
+                    </button>
+                    <button @click="showCanvas = false" class="btn-close-panel">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="canvas-content">
+                <!-- Preview Tab -->
+                <div x-show="canvasTab === 'preview'" class="canvas-tab-content">
+                    <template x-if="canvasType === 'html'">
+                        <iframe 
+                            x-ref="canvasPreview"
+                            class="canvas-iframe"
+                            sandbox="allow-scripts"
+                            :srcdoc="canvasContent"
+                        ></iframe>
+                    </template>
+                    
+                    <template x-if="canvasType === 'svg'">
+                        <div class="canvas-svg-container" x-html="canvasContent"></div>
+                    </template>
+                    
+                    <template x-if="canvasType === 'image'">
+                        <div class="canvas-image-container">
+                            <img :src="canvasContent" alt="Generated image" class="canvas-image">
+                        </div>
+                    </template>
+                    
+                    <template x-if="canvasType === 'chart'">
+                        <div class="canvas-chart-container">
+                            <canvas x-ref="canvasChart"></canvas>
+                        </div>
+                    </template>
+                    
+                    <template x-if="canvasType === 'document'">
+                        <div class="canvas-document" x-html="renderMarkdown(canvasContent)"></div>
+                    </template>
+                </div>
+
+                <!-- Code Tab -->
+                <div x-show="canvasTab === 'code'" class="canvas-tab-content">
+                    <div class="code-editor">
+                        <div class="code-header">
+                            <span class="code-language" x-text="canvasLanguage || 'plaintext'"></span>
+                            <button @click="executeCode()" class="btn-execute" x-show="canvasLanguage === 'python' || canvasLanguage === 'javascript'">
+                                <i class="bi bi-play-fill"></i>
+                                Run Code
+                            </button>
+                        </div>
+                        <pre class="code-content"><code x-text="canvasRawContent || canvasContent"></code></pre>
+                    </div>
+                    
+                    <template x-if="codeOutput">
+                        <div class="code-output">
+                            <div class="output-header">
+                                <i class="bi bi-terminal"></i>
+                                <span>Output</span>
+                            </div>
+                            <pre class="output-content" x-text="codeOutput"></pre>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Data Tab -->
+                <div x-show="canvasTab === 'data'" class="canvas-tab-content">
+                    <template x-if="canvasData">
+                        <div class="data-viewer">
+                            <div class="data-stats">
+                                <span class="stat-item">
+                                    <i class="bi bi-list-ol"></i>
+                                    <span x-text="canvasData.rows + ' rows'"></span>
+                                </span>
+                                <span class="stat-item">
+                                    <i class="bi bi-columns"></i>
+                                    <span x-text="canvasData.columns + ' columns'"></span>
+                                </span>
+                            </div>
+                            <div class="data-table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th v-for="col in canvasData.headers" :key="col" x-text="col"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(row, idx) in canvasData.data" :key="idx">
+                                            <td v-for="(cell, cidx) in row" :key="cidx" x-text="cell"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!canvasData">
+                        <div class="empty-panel">
+                            <i class="bi bi-table"></i>
+                            <p>No data available</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Settings Modal -->
+    <div x-show="showSettings" class="modal-overlay" @click.self="showSettings = false">
+        <div class="modal-content settings-modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button @click="showSettings = false" class="btn-close-modal">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>Appearance</h3>
+                    <div class="setting-item">
+                        <label>Theme</label>
+                        <select x-model="theme" @change="saveTheme()">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Model Configuration</h3>
+                    <div class="setting-item">
+                        <label>LLM Provider</label>
+                        <select x-model="settings.provider">
+                            <option value="openai">OpenAI</option>
+                            <option value="ollama">Ollama</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Temperature</label>
+                        <input type="range" min="0" max="2" step="0.1" x-model="settings.temperature">
+                        <span x-text="settings.temperature"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add MCP Server Modal -->
+    <div x-show="showAddMCPModal" class="modal-overlay" @click.self="showAddMCPModal = false">
+        <div class="modal-content settings-modal">
+            <div class="modal-header">
+                <h2>Add MCP Server</h2>
+                <button @click="showAddMCPModal = false" class="btn-close-modal">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <div class="setting-item">
+                        <label>Server Name *</label>
+                        <input type="text" x-model="newMCP.name" placeholder="e.g., my-mcp-server" class="form-control">
+                        <small class="text-muted">A unique identifier for this MCP server</small>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <label>Transport Type *</label>
+                        <select x-model="newMCP.transport" class="form-control">
+                            <option value="stdio">STDIO (Command-based)</option>
+                            <option value="http">HTTP (URL-based)</option>
+                        </select>
+                        <small class="text-muted">Communication protocol for the MCP server</small>
+                    </div>
+                    
+                    <!-- STDIO Transport Fields -->
+                    <template x-if="newMCP.transport === 'stdio'">
+                        <div>
+                            <div class="setting-item">
+                                <label>Command *</label>
+                                <input type="text" x-model="newMCP.command" placeholder="e.g., npx, python, node" class="form-control">
+                                <small class="text-muted">The command to start the MCP server</small>
+                            </div>
+                            <div class="setting-item">
+                                <label>Arguments</label>
+                                <input type="text" x-model="newMCP.args" placeholder="e.g., -m, server, --port=3000" class="form-control">
+                                <small class="text-muted">Comma-separated command arguments</small>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <!-- HTTP Transport Fields -->
+                    <template x-if="newMCP.transport === 'http'">
+                        <div>
+                            <div class="setting-item">
+                                <label>Server URL *</label>
+                                <input type="url" x-model="newMCP.url" placeholder="https://api.example.com/mcp" class="form-control">
+                                <small class="text-muted">The HTTP endpoint URL for the MCP server</small>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <div class="setting-item">
+                        <label>Environment Variables / Metadata (JSON)</label>
+                        <textarea x-model="newMCP.env" rows="3" placeholder='{"API_KEY": "your-key"}' class="form-control"></textarea>
+                        <small class="text-muted">Optional environment variables or metadata as JSON object</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button @click="showAddMCPModal = false" class="btn btn-secondary">
+                        Cancel
+                    </button>
+                    <button @click="addNewMCP()" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i>
+                        Add Server
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="static/toast.js"></script>
+    <script src="static/redesign.js"></script>
+</body>
+</html>

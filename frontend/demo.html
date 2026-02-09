@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Components Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="static/theme.css">
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card card-modern shadow-sm mb-4">
+                    <div class="card-header card-header-modern">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h1 class="h4 mb-0">🎨 UI Components Demo</h1>
+                            <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                                <span class="theme-toggle-slider">
+                                    <span class="theme-toggle-icon">🌙</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead">Test all the new modernized UI components and features.</p>
+                        
+                        <!-- Toast Notifications -->
+                        <section class="mb-5">
+                            <h2 class="h5 mb-3">📢 Toast Notifications</h2>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-success" onclick="window.toast.success('Operation completed successfully!')">Success Toast</button>
+                                <button class="btn btn-danger" onclick="window.toast.error('An error occurred!', 5000)">Error Toast</button>
+                                <button class="btn btn-warning" onclick="window.toast.warning('Please be careful!', 4000)">Warning Toast</button>
+                                <button class="btn btn-info" onclick="window.toast.info('Here is some information.')">Info Toast</button>
+                                <button class="btn btn-secondary" onclick="window.toast.show('Custom message with action', 'info', 0, {dismissible: true, action: {text: 'Undo', onClick: () => alert('Undo clicked!')}})">With Action</button>
+                            </div>
+                        </section>
+
+                        <!-- Loading States -->
+                        <section class="mb-5">
+                            <h2 class="h5 mb-3">⏳ Loading States</h2>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button class="btn btn-primary" id="test-btn-1" onclick="testButtonLoading('test-btn-1')">Button Loading</button>
+                                <button class="btn btn-primary" onclick="window.showLoadingOverlay('Processing your request...')">Show Overlay</button>
+                                <button class="btn btn-secondary" onclick="window.hideLoadingOverlay()">Hide Overlay</button>
+                                <button class="btn btn-primary" onclick="window.showIndeterminateProgress()">Show Progress</button>
+                                <button class="btn btn-secondary" onclick="window.hideIndeterminateProgress()">Hide Progress</button>
+                            </div>
+                            
+                            <h3 class="h6 mb-2">Skeleton Loaders:</h3>
+                            <div id="skeleton-demo" class="mb-3">
+                                <!-- Will be populated by JS -->
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="showSkeletonDemo()">Show Skeletons</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="hideSkeletonDemo()">Hide Skeletons</button>
+                        </section>
+
+                        <!-- Empty States -->
+                        <section class="mb-5">
+                            <h2 class="h5 mb-3">📭 Empty States</h2>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded" id="empty-demo-1" style="min-height: 200px;">
+                                        <!-- Chat empty state -->
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="showEmptyDemo(1)">Chat Empty</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded" id="empty-demo-2" style="min-height: 200px;">
+                                        <!-- MCP empty state -->
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="showEmptyDemo(2)">MCP Empty</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded" id="empty-demo-3" style="min-height: 200px;">
+                                        <!-- Error state -->
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-danger mt-2" onclick="showEmptyDemo(3)">Error State</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded" id="empty-demo-4" style="min-height: 200px;">
+                                        <!-- Search empty state -->
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="showEmptyDemo(4)">Search Empty</button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Message Actions -->
+                        <section class="mb-5">
+                            <h2 class="h5 mb-3">💬 Message Components</h2>
+                            <div class="border rounded p-3" style="background: var(--bg-secondary);">
+                                <div id="message-demo"></div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="showMessageDemo()">Show Messages</button>
+                        </section>
+
+                        <!-- Code Blocks -->
+                        <section class="mb-5">
+                            <h2 class="h5 mb-3">💻 Code Blocks</h2>
+                            <pre><code>function hello() {
+    console.log('Hello, World!');
+    return true;
+}</code></pre>
+                            <p class="text-muted small">Hover over the code block to see the copy button</p>
+                        </section>
+
+                        <!-- Theme Colors -->
+                        <section class="mb-5">
+                            <h2 class="h5 mb-3">🎨 Theme Colors</h2>
+                            <div class="row g-2">
+                                <div class="col-auto">
+                                    <div style="width: 60px; height: 60px; background: var(--color-primary); border-radius: var(--radius-md);" title="Primary"></div>
+                                    <small class="d-block text-center mt-1">Primary</small>
+                                </div>
+                                <div class="col-auto">
+                                    <div style="width: 60px; height: 60px; background: var(--color-secondary); border-radius: var(--radius-md);" title="Secondary"></div>
+                                    <small class="d-block text-center mt-1">Secondary</small>
+                                </div>
+                                <div class="col-auto">
+                                    <div style="width: 60px; height: 60px; background: var(--color-success); border-radius: var(--radius-md);" title="Success"></div>
+                                    <small class="d-block text-center mt-1">Success</small>
+                                </div>
+                                <div class="col-auto">
+                                    <div style="width: 60px; height: 60px; background: var(--color-warning); border-radius: var(--radius-md);" title="Warning"></div>
+                                    <small class="d-block text-center mt-1">Warning</small>
+                                </div>
+                                <div class="col-auto">
+                                    <div style="width: 60px; height: 60px; background: var(--color-error); border-radius: var(--radius-md);" title="Error"></div>
+                                    <small class="d-block text-center mt-1">Error</small>
+                                </div>
+                                <div class="col-auto">
+                                    <div style="width: 60px; height: 60px; background: var(--color-info); border-radius: var(--radius-md);" title="Info"></div>
+                                    <small class="d-block text-center mt-1">Info</small>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Keyboard Shortcuts -->
+                        <section class="mb-5">
+                            <h2 class="h5 mb-3">⌨️ Keyboard Shortcuts</h2>
+                            <div class="alert alert-info">
+                                <ul class="mb-0">
+                                    <li><kbd>Ctrl/Cmd + K</kbd> - Focus input</li>
+                                    <li><kbd>Shift + Enter</kbd> - New line in textarea</li>
+                                    <li><kbd>Enter</kbd> - Submit message</li>
+                                    <li><kbd>Esc</kbd> - Clear input (when focused)</li>
+                                </ul>
+                            </div>
+                        </section>
+
+                        <!-- Back to App -->
+                        <div class="text-center">
+                            <a href="/" class="btn btn-primary btn-modern">← Back to Chat</a>
+                            <a href="/mcp" class="btn btn-secondary btn-modern ms-2">MCP Interface</a>
+                            <a href="/embeddings" class="btn btn-secondary btn-modern ms-2">Embeddings</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="static/toast.js"></script>
+    <script src="static/loading.js"></script>
+    <script src="static/empty-states.js"></script>
+    <script src="static/enhancements.js"></script>
+    
+    <script>
+        // Initialize theme
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.querySelector('.theme-toggle-icon');
+            if (icon) {
+                icon.textContent = theme === 'light' ? '🌙' : '☀️';
+            }
+        }
+
+        // Test button loading
+        function testButtonLoading(btnId) {
+            const btn = document.getElementById(btnId);
+            window.addButtonLoading(btn, 'Loading...');
+            setTimeout(() => {
+                window.removeButtonLoading(btn);
+                window.toast.success('Loading complete!');
+            }, 2000);
+        }
+
+        // Show skeleton demo
+        function showSkeletonDemo() {
+            const container = document.getElementById('skeleton-demo');
+            container.innerHTML = '';
+            container.appendChild(window.createListSkeleton(3));
+        }
+
+        function hideSkeletonDemo() {
+            const container = document.getElementById('skeleton-demo');
+            container.innerHTML = '<p class="text-muted">Click "Show Skeletons" to see loading states</p>';
+        }
+
+        // Show empty state demos
+        function showEmptyDemo(num) {
+            const container = document.getElementById(`empty-demo-${num}`);
+            container.innerHTML = '';
+            
+            switch(num) {
+                case 1:
+                    container.appendChild(window.createChatEmptyState());
+                    break;
+                case 2:
+                    container.appendChild(window.createMCPEmptyState(() => alert('Add MCP clicked!')));
+                    break;
+                case 3:
+                    container.appendChild(window.createConnectionErrorState(() => window.toast.info('Retry clicked!')));
+                    break;
+                case 4:
+                    container.appendChild(window.createSearchEmptyState('test query'));
+                    break;
+            }
+        }
+
+        // Show message demo
+        function showMessageDemo() {
+            const container = document.getElementById('message-demo');
+            container.innerHTML = '';
+            
+            // User message
+            const userMsg = document.createElement('div');
+            userMsg.className = 'chat-msg user-msg';
+            userMsg.textContent = 'This is a user message';
+            container.appendChild(userMsg);
+            
+            // Agent message with actions
+            const agentMsg = document.createElement('div');
+            agentMsg.className = 'chat-msg agent-msg';
+            agentMsg.innerHTML = '<strong>Agent Response:</strong> This is an agent message with copy functionality. You can also include <code>code snippets</code> and <em>formatted text</em>.';
+            window.addMessageActions(agentMsg, 'This is an agent message with copy functionality.', 'agent');
+            container.appendChild(agentMsg);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+            hideSkeletonDemo();
+            
+            // Initialize keyboard shortcuts
+            if (typeof window.initKeyboardShortcuts === 'function') {
+                window.initKeyboardShortcuts();
+            }
+            
+            // Add copy buttons to code blocks
+            if (typeof window.addCodeCopyButtons === 'function') {
+                window.addCodeCopyButtons();
+            }
+        });
+    </script>
+</body>
+</html>
