@@ -86,13 +86,17 @@
                                     <label for="mcp-url" class="form-label">Endpoint URL</label>
                                     <input type="url" class="form-control" id="mcp-url" placeholder="Enter endpoint URL" required>
                                 </div>
+                                <div class="col-12" data-transport="streamable_http" style="display:none;">
+                                    <label for="mcp-header" class="form-label">Header</label>
+                                    <textarea class="form-control" id="mcp-header" placeholder='{"Authorization": "Bearer <token>"}'></textarea>
+                                </div>
                                 <div class="col-12" data-transport="stdio" style="display:none;">
                                     <label for="mcp-command" class="form-label">Command</label>
                                     <input type="text" class="form-control" id="mcp-command" placeholder="Enter command">
                                 </div>
                                 <div class="col-12" data-transport="stdio" style="display:none;">
                                     <label for="mcp-args" class="form-label">Arguments</label>
-                                    <input type="text" class="form-control" id="mcp-args" placeholder='["/path/to/math_server.py"]'>
+                                    <textarea class="form-control" id="mcp-args" placeholder='["/path/to/math_server.py"]'></textarea>
                                 </div>
                                 <div class="col-2">
                                     <button type="submit" class="btn btn-success w-100">Add</button>

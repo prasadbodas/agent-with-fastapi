@@ -501,8 +501,11 @@ window.addEventListener('DOMContentLoaded', () => {
             const url = document.getElementById('mcp-url') ? document.getElementById('mcp-url').value : null;
             const command = document.getElementById('mcp-command') ? document.getElementById('mcp-command').value : null;
             const argsStr = document.getElementById('mcp-args') ? document.getElementById('mcp-args').value : null;
+            const headerStr = document.getElementById('mcp-header') ? document.getElementById('mcp-header').value : null;
             let args = [];
+            let header = {};
             try { if (argsStr) args = JSON.parse(argsStr); } catch (err) { args = []; }
+            try { if (headerStr) header = JSON.parse(headerStr); } catch (err) { header = {}; }
             const payload = { name, transport };
             // Basic client-side validation
             const statusDiv = document.getElementById('add-mcp-status');
@@ -518,7 +521,10 @@ window.addEventListener('DOMContentLoaded', () => {
                 statusDiv.innerHTML = `<div class='text-danger'>Command is required for STDIO transport.</div>`;
                 return;
             }
-            if (transport === 'streamable_http') payload.url = url;
+            if (transport === 'streamable_http') {
+                payload.url = url;
+                payload.header = header;
+            }
             if (transport === 'stdio') {
                 payload.command = command;
                 payload.args = args;
@@ -569,7 +575,7 @@ function transportFieldsVisibility() {
     
     transportSelect.addEventListener('change', function() {
         var transport = this.value;
-        var httpFields = document.querySelectorAll('[data-transport="http"]');
+        var httpFields = document.querySelectorAll('[data-transport="streamable_http"]');
         var stdioFields = document.querySelectorAll('[data-transport="stdio"]');
 
         if (transport === 'streamable_http') {

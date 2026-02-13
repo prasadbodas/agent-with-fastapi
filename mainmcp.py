@@ -32,6 +32,7 @@ def ensure_mcps_table():
         name TEXT NOT NULL,
         transport TEXT NOT NULL,
         url TEXT,
+        header_json TEXT,
         command TEXT,
         args TEXT,
         metadata TEXT DEFAULT '{}',
@@ -48,9 +49,9 @@ def ensure_mcps_table():
 def list_mcps():
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, name, transport, url, command, args, metadata, active, created_at, updated_at FROM mcps ORDER BY id ASC")
+    cur.execute("SELECT id, name, transport, url, header_json, command, args, metadata, active, created_at, updated_at FROM mcps ORDER BY id ASC")
     rows = cur.fetchall()
-    cols = ["id", "name", "transport", "url", "command", "args", "metadata", "active", "created_at", "updated_at"]
+    cols = ["id", "name", "transport", "url", "header_json", "command", "args", "metadata", "active", "created_at", "updated_at"]
     result = [dict(zip(cols, r)) for r in rows]
     cur.close()
     conn.close()
@@ -60,13 +61,13 @@ def list_mcps():
 def get_mcp(mcp_id: int):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, name, transport, url, command, args, metadata, active, created_at, updated_at FROM mcps WHERE id = ?", (mcp_id,))
+    cur.execute("SELECT id, name, transport, url, header_json, command, args, metadata, active, created_at, updated_at FROM mcps WHERE id = ?", (mcp_id,))
     row = cur.fetchone()
     cur.close()
     conn.close()
     if not row:
         return None
-    cols = ["id", "name", "transport", "url", "command", "args", "metadata", "active", "created_at", "updated_at"]
+    cols = ["id", "name", "transport", "url", "header_json", "command", "args", "metadata", "active", "created_at", "updated_at"]
     return dict(zip(cols, row))
 
 
@@ -74,10 +75,11 @@ def save_mcp(data: dict):
     conn = get_conn()
     cur = conn.cursor()
     args_json = json.dumps(data.get("args")) if data.get("args") is not None else None
+    header_json = json.dumps(data.get("header")) if data.get("header") is not None else None
     metadata = json.dumps(data.get("metadata")) if data.get("metadata") is not None else "{}"
     cur.execute(
-        "INSERT INTO mcps (name, transport, url, command, args, metadata, active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (data.get("name"), data.get("transport"), data.get("url"), data.get("command"), args_json, metadata, 1 if data.get("active", True) else 0)
+        "INSERT INTO mcps (name, transport, url, header_json, command, args, metadata, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (data.get("name"), data.get("transport"), data.get("url"), header_json, data.get("command"), args_json, metadata, 1 if data.get("active", True) else 0)
     )
     conn.commit()
     last_id = cur.lastrowid
@@ -95,13 +97,15 @@ def update_mcp(mcp_id: int, data: dict):
         conn.close()
         return None
     args_json = json.dumps(data.get("args")) if data.get("args") is not None else existing["args"]
+    header_json = json.dumps(data.get("header")) if data.get("header") is not None else existing["header_json"]
     metadata = json.dumps(data.get("metadata")) if data.get("metadata") is not None else existing["metadata"]
     cur.execute(
-        "UPDATE mcps SET name = ?, transport = ?, url = ?, command = ?, args = ?, metadata = ?, active = ?, updated_at = ? WHERE id = ?",
+        "UPDATE mcps SET name = ?, transport = ?, url = ?, header_json = ?, command = ?, args = ?, metadata = ?, active = ?, updated_at = ? WHERE id = ?",
         (
             data.get("name", existing["name"]),
             data.get("transport", existing["transport"]),
             data.get("url", existing["url"]),
+            data.get("header_json", existing["header_json"]),
             data.get("command", existing["command"]),
             args_json,
             metadata,
@@ -134,8 +138,8 @@ def build_servers_map(rows):
             continue
         name = r.get("name")
         transport = r.get("transport")
-        if transport == "http":
-            servers[name] = {"url": r.get("url"), "transport": "streamable_http"}
+        if transport == "http" or transport == "streamable_http":
+            servers[name] = {"url": r.get("url"), "headers": json.loads(r.get("header_json") or "{}"), "transport": "streamable_http"}
         elif transport == "stdio":
             args = []
             try:
@@ -146,7 +150,7 @@ def build_servers_map(rows):
 
         else:
             # Fallback: store as url
-            servers[name] = {"url": r.get("url"), "transport": "streamable_http"}
+            servers[name] = {"url": r.get("url"), "headers": json.loads(r.get("header_json") or "{}"), "transport": "streamable_http"}
     return servers
 
 
@@ -255,8 +259,8 @@ async def api_get_mcp_tools():
         try:
             # Create a single-server client
             servers = {}
-            if transport == "http":
-                servers[server_name] = {"url": server.get("url"), "transport": "streamable_http"}
+            if transport == "http" or transport == "streamable_http":
+                servers[server_name] = {"url": server.get("url"), "headers": json.loads(server.get("header_json") or "{}"), "transport": "streamable_http"}
             elif transport == "stdio":
                 args = []
                 try:
@@ -268,6 +272,7 @@ async def api_get_mcp_tools():
                 continue
             
             # Get tools from this specific server
+            print(servers)
             temp_client = MultiServerMCPClient(servers)
             server_tools = await temp_client.get_tools()
             
@@ -296,8 +301,8 @@ async def api_test_mcp(request: Request):
     servers = {}
     name = body.get("name", "test")
     transport = body.get("transport")
-    if transport == "http":
-        servers[name] = {"url": body.get("url"), "transport": "streamable_http"}
+    if transport == "http" or transport == "streamable_http":
+        servers[name] = {"url": body.get("url"), "headers": body.get("header", {}), "transport": "streamable_http"}
     elif transport == "stdio":
         servers[name] = {"command": body.get("command"), "args": body.get("args", []), "transport": "stdio"}
     else:
