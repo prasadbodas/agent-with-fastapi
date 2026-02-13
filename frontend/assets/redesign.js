@@ -398,7 +398,7 @@ function appState() {
                     this.ws.send(JSON.stringify({
                         type: 'chat',
                         message: messageContent,
-                        conversationId: this.currentConversation.id,
+                        session_id: this.currentConversation.id,
                         vectorStore: this.activeVectorStore,
                         tools: this.enabledTools
                     }));
