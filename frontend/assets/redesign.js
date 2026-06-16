@@ -773,7 +773,7 @@ function appState() {
                 // Add environment variables/metadata if provided
                 if (this.newMCP.env && this.newMCP.env.trim()) {
                     try {
-                        mcpConfig.metadata = JSON.parse(this.newMCP.env);
+                        mcpConfig.header = JSON.parse(this.newMCP.env);
                     } catch (e) {
                         this.showToast('Invalid JSON in environment variables', 'error');
                         return;
